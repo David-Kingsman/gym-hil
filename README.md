@@ -182,6 +182,12 @@ All environments in `gym-hil` are designed to work seamlessly with Hugging Face'
 - Train agents with human feedback
 - Perform interactive learning with human intervention
 
+## Tests
+
+```python
+pytest tests/ -v
+```
+
 ## Contribute
 
 ```bash
