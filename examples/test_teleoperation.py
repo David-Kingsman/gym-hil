@@ -22,7 +22,7 @@ import numpy as np
 
 import gym_hil  # noqa: F401
 
-
+# 测试 Franka 机器人拾取立方体环境
 def main():
     parser = argparse.ArgumentParser(description="Control Franka robot interactively")
     parser.add_argument("--step-size", type=float, default=0.01, help="Step size for movement in meters")
@@ -41,17 +41,17 @@ def main():
     )
     args = parser.parse_args()
 
-    # Create Franka environment - Use base environment first to debug
+    # 创建Franka环境 - 使用基础环境进行调试
     env = gym.make(
-        "gym_hil/PandaPickCubeBase-v0",  # Use the base environment for debugging
+        "gym_hil/PandaPickCubeBase-v0",  
         render_mode=args.render_mode,
         image_obs=True,
     )
 
-    # Print observation space for debugging
+    # 打印观察空间用于调试
     print("Observation space:", env.observation_space)
 
-    # Reset and check observation structure
+    # 重置并检查观察结构
     obs, _ = env.reset()
     print("Observation keys:", list(obs.keys()))
     if "pixels" in obs:
