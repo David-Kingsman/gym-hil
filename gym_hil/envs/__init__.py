@@ -14,7 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from gym_hil.envs.panda_masonry_insertion_env import PandaMasonryBlockInsertionEnv
 from gym_hil.envs.panda_arrange_boxes_gym_env import PandaArrangeBoxesGymEnv
 from gym_hil.envs.panda_pick_gym_env import PandaPickCubeGymEnv
+from gym_hil.envs.panda_pick_gym_ft_env import PandaPickCubeGymFtEnv
 
-__all__ = ["PandaPickCubeGymEnv", "PandaArrangeBoxesGymEnv"]
+# Alias for compatibility
+MasonryBlockInsertionGymEnv = PandaMasonryBlockInsertionEnv
+RegularMasonryBlockInsertionEnv = PandaMasonryBlockInsertionEnv
+
+__all__ = ["PandaPickCubeGymEnv", "PandaPickCubeGymFtEnv", "PandaArrangeBoxesGymEnv", "XarmPickCubeGymEnv", "MasonryBlockInsertionGymEnv", "PandaMasonryBlockInsertionEnv", "RegularMasonryBlockInsertionEnv", "XarmMasonryBlockInsertionGymEnv"]
