@@ -19,7 +19,7 @@ from typing import Optional, Tuple, Union
 import mujoco
 import numpy as np
 
-
+# 旋转矩阵转换为四元数 [w, x, y, z]
 def mat_to_quat(mat: np.ndarray) -> np.ndarray:
     """Convert a 3x3 rotation matrix to a quaternion.
 
@@ -58,7 +58,7 @@ def mat_to_quat(mat: np.ndarray) -> np.ndarray:
 
     return np.array([w, x, y, z])
 
-
+# 四元数差计算  [w, x, y, z]
 def quat_diff_active(source_quat: np.ndarray, target_quat: np.ndarray) -> np.ndarray:
     """Compute the quaternion difference from source to target.
 
@@ -84,7 +84,7 @@ def quat_diff_active(source_quat: np.ndarray, target_quat: np.ndarray) -> np.nda
 
     return np.array([w, x, y, z])
 
-
+# 四元数转换为轴角 [x, y, z]
 def quat_to_axisangle(quat: np.ndarray) -> np.ndarray:
     """Convert a quaternion to axis-angle representation.
 
@@ -121,7 +121,7 @@ def quat_to_axisangle(quat: np.ndarray) -> np.ndarray:
     # Return axis-angle vector
     return angle * axis
 
-
+# 位置PD控制 [x, y, z]
 def pd_control(
     x: np.ndarray,
     x_des: np.ndarray,
@@ -146,7 +146,7 @@ def pd_control(
 
     return x_err + dx_err
 
-
+# 方向PD控制
 def pd_control_orientation(
     quat: np.ndarray,
     quat_des: np.ndarray,
@@ -172,7 +172,7 @@ def pd_control_orientation(
 
     return ori_err + w_err
 
-
+# 操作空间控制 [x, y, z, w, x, y, z]
 def opspace(
     model,
     data,
