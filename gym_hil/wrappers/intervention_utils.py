@@ -16,6 +16,7 @@
 
 import json
 from pathlib import Path
+import numpy as np
 
 
 def load_controller_config(controller_name: str, config_path: str | None = None) -> dict:
@@ -546,3 +547,222 @@ class GamepadControllerHID(InputController):
     def should_save(self):
         """Return True if save button was pressed."""
         return self.save_requested
+
+
+class MetaQuestController(InputController):
+    """
+    Adapter that wraps MetaQuestTeleop to work with InputController interface.
+    
+    Uses the existing MetaQuestTeleop from lerobot.teleoperators.meta_quest for:
+    - 6-DoF control (position + rotation)
+    - Gripper control via trigger
+    - Episode control via keyboard
+    
+    Controls:
+    - Hand movement: X, Y, Z position
+    - Hand rotation: Roll, Pitch, Yaw
+    - RTr (trigger) 按住: Close gripper
+    - RTr (trigger) 松开: Open gripper  
+    - A button 按住: Intervention mode (干预模式)
+    - Enter: Success
+    - Backspace: Failure
+    - R: Rerecord
+    - ESC: Quit
+    """
+
+    def __init__(
+        self, 
+        x_step_size=0.01, 
+        y_step_size=0.01, 
+        z_step_size=0.01,
+        translation_scale=1.0,   # Increased from 0.2 for larger movements
+        rotation_scale=1.0,      # Increased from 0.2 for larger rotations
+        deadzone=0.001,
+        right_controller=True,
+    ):
+        super().__init__(x_step_size, y_step_size, z_step_size)
+        self.translation_scale = translation_scale
+        self.rotation_scale = rotation_scale
+        self.deadzone = deadzone
+        self.right_controller = right_controller
+        
+        self._teleop = None  # MetaQuestTeleop instance
+        self._robot_init_pose = None
+        self._is_initialized = False
+        
+        # 6-DoF deltas (updated from MetaQuestTeleop.get_action())
+        self.delta_x = 0.0
+        self.delta_y = 0.0
+        self.delta_z = 0.0
+        self.delta_roll = 0.0
+        self.delta_pitch = 0.0
+        self.delta_yaw = 0.0
+        
+        # Intervention state
+        self._intervention_active = False
+        
+        # Episode control states
+        self.key_states = {
+            "success": False,
+            "failure": False,
+            "quit": False,
+            "rerecord": False,
+        }
+
+    def start(self):
+        """Start the Meta Quest controller using MetaQuestTeleop."""
+        try:
+            from lerobot.teleoperators.meta_quest.teleop_meta_quest import MetaQuestTeleop
+            from lerobot.teleoperators.meta_quest.configuration_meta_quest import MetaQuestTeleopConfig
+            
+            # Create config with our settings
+            config = MetaQuestTeleopConfig(
+                use_gripper=True,
+                right_controller=self.right_controller,
+                translation_scale=self.translation_scale,
+                rotation_scale=self.rotation_scale,
+                deadzone=self.deadzone,
+            )
+            
+            # Create and connect MetaQuestTeleop
+            self._teleop = MetaQuestTeleop(config)
+            self._teleop.connect()
+            
+            print("")
+            print("=" * 70)
+            print("       Meta Quest + HILSerl Teleop Controller Initialized")
+            print("=" * 70)
+            print("")
+            print("【Meta Quest 6-DoF 控制】")
+            print("  ✋ 手柄移动 → 控制机械臂位置 (X, Y, Z)")
+            print("  🔄 手柄旋转 → 控制机械臂姿态 (Roll, Pitch, Yaw)")
+            print("  🎮 RTr (扳机) 按住 → 关闭夹爪 (抓取)")
+            print("  🎮 RTr (扳机) 松开 → 打开夹爪 (释放)")
+            print("")
+            print("【HILSerl 键盘功能键】")
+            print("  ⏎  Enter     → 标记 Episode 成功 (SUCCESS) 并结束")
+            print("  ⌫  Backspace → 标记 Episode 失败 (FAILURE) 并结束")
+            print("  🔄 R         → 丢弃当前录制，重新录制 (RERECORD)")
+            print("  🔤 q         → 退出程序 (QUIT)")
+            print("")
+            print("【缩放参数】")
+            print(f"  Position scale: {self.translation_scale} | Rotation scale: {self.rotation_scale}")
+            print("=" * 70)
+            print("")
+            
+        except ImportError as e:
+            print(f"Failed to import MetaQuestTeleop: {e}")
+            print("Make sure lerobot.teleoperators.meta_quest is installed.")
+            self._teleop = None
+        except Exception as e:
+            print(f"Failed to initialize MetaQuestTeleop: {e}")
+            import traceback
+            traceback.print_exc()
+            self._teleop = None
+
+    def set_robot_init_pose(self, robot_init_pose):
+        """Set the robot initial pose for delta calculation.
+        
+        This should be called after environment reset with the robot's EE pose.
+        """
+        self._robot_init_pose = robot_init_pose.copy() if robot_init_pose is not None else np.eye(4)
+        
+        if self._teleop is not None:
+            self._teleop.set_robot_init_pose(self._robot_init_pose)
+            if not self._is_initialized:
+                print(f"[MetaQuest] Robot init pose set. Ready for control.")
+            self._is_initialized = True
+
+    def stop(self):
+        """Stop the Meta Quest controller."""
+        if self._teleop is not None:
+            try:
+                self._teleop.disconnect()
+            except Exception:
+                pass
+            self._teleop = None
+
+    def update(self):
+        """Update controller state from MetaQuestTeleop."""
+        if self._teleop is None:
+            return
+        
+        # Auto-initialize with default pose if not set
+        if not self._is_initialized:
+            default_pose = np.eye(4)
+            default_pose[:3, 3] = [0, 0, 0]  # Origin
+            self.set_robot_init_pose(default_pose)
+        
+        try:
+            # Get action from MetaQuestTeleop
+            action = self._teleop.get_action()
+            
+            # Extract deltas
+            self.delta_x = action.get("delta_x", 0.0)
+            self.delta_y = action.get("delta_y", 0.0)
+            self.delta_z = action.get("delta_z", 0.0)
+            self.delta_roll = action.get("delta_roll", 0.0)
+            self.delta_pitch = action.get("delta_pitch", 0.0)
+            self.delta_yaw = action.get("delta_yaw", 0.0)
+            
+            # Get gripper state (0=close, 1=stay, 2=open)
+            gripper_action = action.get("gripper", 1)
+            self.close_gripper_command = (gripper_action == 0)
+            self.open_gripper_command = (gripper_action == 2)
+            
+            # Get teleop events for intervention and episode control
+            events = self._teleop.get_teleop_events()
+            self._intervention_active = events.get("is_intervention", False)
+            
+            # Handle episode end events from keyboard
+            if events.get("success", False):
+                self.key_states["success"] = True
+                self.episode_end_status = "success"
+            if events.get("terminate_episode", False) and not events.get("success", False):
+                self.key_states["failure"] = True
+                self.episode_end_status = "failure"
+            if events.get("rerecord_episode", False):
+                self.key_states["rerecord"] = True
+                self.episode_end_status = "rerecord_episode"
+            
+            # Debug print removed - now using ACTION print in get_gamepad_action()
+            
+        except Exception as e:
+            print(f"\nError reading MetaQuestTeleop state: {e}")
+
+    def get_deltas(self):
+        """Get the current 3-DoF position deltas."""
+        return self.delta_x, self.delta_y, self.delta_z
+
+    def get_6dof_deltas(self):
+        """Get all 6-DoF deltas (position + rotation)."""
+        return {
+            "delta_x": self.delta_x,
+            "delta_y": self.delta_y,
+            "delta_z": self.delta_z,
+            "delta_roll": self.delta_roll,
+            "delta_pitch": self.delta_pitch,
+            "delta_yaw": self.delta_yaw,
+        }
+
+    def should_intervene(self):
+        """Return True when intervention is active (always True for Meta Quest)."""
+        # For Meta Quest, we consider any valid controller connection as intervention
+        # Unlike gamepad where you explicitly press a button
+        return self._teleop is not None and self._is_initialized
+
+    def reset(self):
+        """Reset the controller state."""
+        self._robot_init_pose = None
+        self._is_initialized = False
+        self.delta_x = 0.0
+        self.delta_y = 0.0
+        self.delta_z = 0.0
+        self.delta_roll = 0.0
+        self.delta_pitch = 0.0
+        self.delta_yaw = 0.0
+        
+        for key in self.key_states:
+            self.key_states[key] = False
+        
+        self.episode_end_status = None

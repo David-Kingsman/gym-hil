@@ -4,8 +4,10 @@ from typing import TypedDict
 
 import gymnasium as gym
 
+from gym_hil.envs.panda_masonry_insertion_env import PandaMasonryBlockInsertionEnv
 from gym_hil.envs.panda_arrange_boxes_gym_env import PandaArrangeBoxesGymEnv
 from gym_hil.envs.panda_pick_gym_env import PandaPickCubeGymEnv
+from gym_hil.envs.panda_pick_gym_ft_env import PandaPickCubeGymFtEnv
 from gym_hil.wrappers.hil_wrappers import (
     DEFAULT_EE_STEP_SIZE,
     EEActionWrapper,
@@ -27,6 +29,7 @@ def wrap_env(
     ee_step_size: EEActionStepSize | None = None,
     use_viewer: bool = False,
     use_gamepad: bool = False,
+    use_meta_quest: bool = False,
     use_gripper: bool = True,
     use_inputs_control: bool = False,
     auto_reset: bool = False,
@@ -34,6 +37,7 @@ def wrap_env(
     gripper_penalty: float = -0.02,
     reset_delay_seconds: float = 1.0,
     controller_config_path: str = None,
+    meta_quest_config: dict = None,
 ) -> gym.Env:
     """Apply wrappers to an environment based on configuration.
 
@@ -42,6 +46,7 @@ def wrap_env(
         ee_step_size: Step size for movement in meters
         use_viewer: Whether to add a passive viewer
         use_gamepad: Whether to use gamepad instead of keyboard controls
+        use_meta_quest: Whether to use Meta Quest VR controller for 6-DoF control
         use_gripper: Whether to enable gripper control
         use_inputs_control: Whether to use inputs control
         auto_reset: Whether to automatically reset the environment when episode ends
@@ -49,6 +54,7 @@ def wrap_env(
         gripper_penalty: Penalty for using the gripper
         reset_delay_seconds: The number of seconds to delay during reset
         controller_config_path: Path to the controller configuration JSON file
+        meta_quest_config: Configuration for Meta Quest (translation_scale, rotation_scale, etc.)
 
     Returns:
         The wrapped environment
@@ -57,12 +63,16 @@ def wrap_env(
     if use_gripper:
         env = GripperPenaltyWrapper(env, penalty=gripper_penalty)
 
+    # Choose step size based on controller type
     if not ee_step_size:
-        ee_step_size = DEFAULT_EE_STEP_SIZE
-    env = EEActionWrapper(env, ee_action_step_size=ee_step_size, use_gripper=True)
+        ee_step_size = DEFAULT_EE_STEP_SIZE      # Original gamepad steps
+    
+    # EEActionWrapper only supports 3-DoF (xyz) + optional gripper (original gamepad mode)
+    env = EEActionWrapper(env, ee_action_step_size=ee_step_size, use_gripper=use_gripper)
 
     if use_inputs_control:
         # Apply control wrappers last
+        # InputsControlWrapper only supports gamepad/keyboard (3-DoF xyz + optional gripper)
         env = InputsControlWrapper(
             env,
             x_step_size=1.0,
@@ -70,6 +80,7 @@ def wrap_env(
             z_step_size=1.0,
             use_gripper=use_gripper,
             auto_reset=auto_reset,
+            input_threshold=0.001,
             use_gamepad=use_gamepad,
             controller_config_path=controller_config_path,
         )
@@ -89,6 +100,7 @@ def make_env(
     ee_step_size: EEActionStepSize | None = None,
     use_viewer: bool = False,
     use_gamepad: bool = False,
+    use_meta_quest: bool = False,
     use_gripper: bool = True,
     use_inputs_control: bool = False,
     auto_reset: bool = False,
@@ -96,6 +108,7 @@ def make_env(
     gripper_penalty: float = -0.02,
     reset_delay_seconds: float = 1.0,
     controller_config_path: str | None = None,
+    meta_quest_config: dict | None = None,
     **kwargs,
 ) -> gym.Env:
     """Create and wrap an environment in a single function.
@@ -105,6 +118,7 @@ def make_env(
         ee_step_size: Step size for movement in meters
         use_viewer: Whether to add a passive viewer
         use_gamepad: Whether to use gamepad instead of keyboard controls
+        use_meta_quest: Whether to use Meta Quest VR controller for 6-DoF control
         use_gripper: Whether to enable gripper control
         use_inputs_control: Whether to use inputs control
         auto_reset: Whether to automatically reset the environment when episode ends
@@ -112,6 +126,7 @@ def make_env(
         gripper_penalty: Penalty for using the gripper
         reset_delay_seconds: The number of seconds to delay during reset
         controller_config_path: Path to the controller configuration JSON file
+        meta_quest_config: Configuration for Meta Quest (translation_scale, rotation_scale, etc.)
         **kwargs: Additional arguments to pass to the base environment
 
     Returns:
@@ -120,8 +135,12 @@ def make_env(
     # Create the base environment directly
     if env_id == "gym_hil/PandaPickCubeBase-v0":
         env = PandaPickCubeGymEnv(**kwargs)
+    elif env_id == "gym_hil/PandaPickCubeFtBase-v0":
+        env = PandaPickCubeGymFtEnv(**kwargs)
     elif env_id == "gym_hil/PandaArrangeBoxesBase-v0":
         env = PandaArrangeBoxesGymEnv(**kwargs)
+    elif env_id == "gym_hil/MasonryBlockInsertionBase-v0":
+        env = PandaMasonryBlockInsertionEnv(**kwargs)
     else:
         raise ValueError(f"Environment ID {env_id} not supported")
 
@@ -130,6 +149,7 @@ def make_env(
         ee_step_size=ee_step_size,
         use_viewer=use_viewer,
         use_gamepad=use_gamepad,
+        use_meta_quest=use_meta_quest,
         use_gripper=use_gripper,
         use_inputs_control=use_inputs_control,
         auto_reset=auto_reset,
@@ -137,4 +157,5 @@ def make_env(
         gripper_penalty=gripper_penalty,
         reset_delay_seconds=reset_delay_seconds,
         controller_config_path=controller_config_path,
+        meta_quest_config=meta_quest_config,
     )
