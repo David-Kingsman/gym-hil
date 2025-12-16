@@ -27,8 +27,13 @@ _CARTESIAN_BOUNDS = np.asarray([[0.2, -0.3, 0], [0.6, 0.3, 0.5]])
 _SAMPLING_BOUNDS = np.asarray([[0.3, -0.15], [0.5, 0.15]])
 
 
-class PandaPickCubeGymEnv(FrankaGymEnv):
-    """Environment for a Panda robot picking up a cube."""
+class PandaPickCubeGymFtEnv(FrankaGymEnv):
+    """Environment for a Panda robot picking up a cube with Force/Torque sensing.
+    
+    This environment extends PandaPickCubeGymEnv by including force and torque
+    measurements from the robot's sensors. The force/torque information is included
+    in the observation space and can be used for learning force-aware manipulation policies.
+    """
 
     def __init__(
         self,
@@ -40,8 +45,10 @@ class PandaPickCubeGymEnv(FrankaGymEnv):
         image_obs: bool = False,
         reward_type: str = "sparse",
         random_block_position: bool = False,
+        include_velocity: bool = True,
     ):
         self.reward_type = reward_type
+        self.include_velocity = include_velocity
 
         super().__init__(
             seed=seed,
@@ -61,10 +68,21 @@ class PandaPickCubeGymEnv(FrankaGymEnv):
         # Setup observation space properly to match what _compute_observation returns
         # Observation space design:
         #   - "state":  agent (robot) configuration as a single Box
+        #     Includes: joint positions, velocities (optional), gripper pose (raw 0-255), TCP position, force/torque
         #   - "environment_state": block position in the world as a single Box
         #   - "pixels": (optional) dict of camera views if image observations are enabled
 
-        agent_dim = self.get_robot_state().shape[0]
+        # Base robot state: joint positions (7D) + gripper (1D, raw 0-255) + TCP position (3D) = 11D
+        base_robot_dim = 11
+        
+        # Add velocity if enabled: joint velocities (7D) = 7D
+        if self.include_velocity:
+            base_robot_dim += 7
+        
+        # Force/Torque dimensions: wrist_force (3D) + joint_torques (7 joints × 3D each = 21D) = 24D
+        force_torque_dim = 24
+        
+        agent_dim = base_robot_dim + force_torque_dim
         agent_box = spaces.Box(-np.inf, np.inf, (agent_dim,), dtype=np.float32)
         env_box = spaces.Box(-np.inf, np.inf, (3,), dtype=np.float32)
 
@@ -162,8 +180,32 @@ class PandaPickCubeGymEnv(FrankaGymEnv):
         # Create the dictionary structure that matches our observation space
         observation = {}
 
-        # Get robot state
-        robot_state = self.get_robot_state().astype(np.float32)
+        # Get robot state components
+        # Joint positions (7D)
+        qpos = self._data.qpos[self._panda_dof_ids].astype(np.float32)
+        
+        # Gripper pose (1D) - return raw value (0-255) to match non-FT version
+        # This ensures consistency between FT and non-FT versions
+        # Both versions now return raw gripper values (0-255)
+        gripper_pose = self.get_gripper_pose().astype(np.float32)
+        
+        # TCP position (3D)
+        tcp_pos = self._data.sensor("2f85/pinch_pos").data.astype(np.float32)
+        
+        # Build base robot state
+        robot_state_parts = [qpos, gripper_pose, tcp_pos]
+        
+        # Add velocities if enabled
+        if self.include_velocity:
+            qvel = self._data.qvel[self._panda_dof_ids].astype(np.float32)
+            robot_state_parts.insert(1, qvel)  # Insert after qpos
+        
+        # Concatenate base robot state
+        robot_state = np.concatenate(robot_state_parts)
+        
+        # Add force/torque information (always included in this environment)
+        force_torque = self._get_force_torque().astype(np.float32)
+        robot_state = np.concatenate([robot_state, force_torque])
 
         # Assemble observation respecting the newly defined observation_space
         block_pos = self._data.sensor("block_pos").data.astype(np.float32)
@@ -183,6 +225,37 @@ class PandaPickCubeGymEnv(FrankaGymEnv):
             }
 
         return observation
+
+    def _get_force_torque(self) -> np.ndarray:
+        """Get force and torque measurements from sensors.
+        
+        Returns:
+            np.ndarray: Concatenated array of [wrist_force (3D), joint_torques (21D)]
+                       Total dimension: 24D
+                       - wrist_force: [Fx, Fy, Fz] from wrist force sensor (contact forces at the wrist)
+                       - joint_torques: [Tx1, Ty1, Tz1, ..., Tx7, Ty7, Tz7] from 7 joint torque sensors
+                                       Each joint torque sensor returns 3D torque vector [Tx, Ty, Tz]
+        """
+        try:
+            # Get wrist force (3D) - contact forces at the wrist
+            wrist_force = self._data.sensor("panda/wrist_force").data.copy()
+            
+            # Get joint torques (7 joints × 3D each = 21D)
+            # Each joint torque sensor returns 3D torque vector [Tx, Ty, Tz]
+            joint_torques = []
+            for i in range(1, 8):
+                torque = self._data.sensor(f"panda/joint{i}_torque").data.copy()
+                joint_torques.append(torque)
+            
+            joint_torques_array = np.concatenate(joint_torques)
+            
+            # Concatenate: [wrist_force (3D), joint_torques (21D)]
+            return np.concatenate([wrist_force, joint_torques_array]).astype(np.float32)
+        except (AttributeError, ValueError, KeyError) as e:
+            # If sensors are not available, return zeros
+            import warnings
+            warnings.warn(f"Failed to read force/torque sensors: {e}, returning zeros")
+            return np.zeros(24, dtype=np.float32)
 
     def _compute_reward(self) -> float:
         """Compute reward based on current state."""
@@ -211,9 +284,18 @@ class PandaPickCubeGymEnv(FrankaGymEnv):
 if __name__ == "__main__":
     from gym_hil import PassiveViewerWrapper
 
-    env = PandaPickCubeGymEnv(render_mode="human")
+    # Test environment with force/torque enabled
+    env = PandaPickCubeGymFtEnv(render_mode="human", include_velocity=True)
     env = PassiveViewerWrapper(env)
-    env.reset()
+    obs, info = env.reset()
+    print(f"Observation space: {env.observation_space}")
+    print(f"Observation keys: {obs.keys()}")
+    print(f"Agent state shape: {obs['agent_pos'].shape}")
+    print(f"Force/Torque included: {obs['agent_pos'].shape[0] >= 35}")  # Should be 35+ with FT
+    
     for _ in range(100):
-        env.step(np.random.uniform(-1, 1, 7))
+        obs, reward, terminated, truncated, info = env.step(np.random.uniform(-1, 1, 7))
+        if terminated:
+            break
     env.close()
+
