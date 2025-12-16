@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mujoco model="masonry_insertion_simple_place">
+    <!-- 包含Panda机械臂模型（使用专门为masonry任务配置的版本，link0已抬高5cm）-->
+    <include file="panda_masonry.xml"/>
+    
+    <!-- 设置仿真参数，timestep是仿真步长，noslip_iterations是接触检测迭代次数，noslip_tolerance是接触检测容差 -->
+    <option timestep="0.002" noslip_iterations="5" noslip_tolerance="0"/>
+    
+    <!-- 设置统计信息，center是统计中心，extent是统计范围 -->
+    <statistic center="0.5 0.5 0.3" extent="1.2"/>
+
+    <!-- 设置视觉参数，headlight是光源，azimuth是光源方向，elevation是光源高度，offheight是视图高度，offwidth是视图宽度 -->
+    <visual>
+      <headlight diffuse="0.4 0.4 0.4" ambient="0.5 0.5 0.5"/>
+      <global azimuth="160" elevation="-20" offheight="128" offwidth="128"/>
+      <quality offsamples="8"/>
+    </visual>
+
+    <!-- 设置资产，texture是纹理，type是纹理类型，builtin是内置纹理，rgb1是颜色，rgb2是颜色，width是宽度，height是高度 -->
+    <asset>
+      <!-- Skybox纹理：使用dawn.png -->
+      <texture name="skybox" type="skybox" gridsize="3 4" gridlayout=".U..LFRB.D.." file="images/dawn.png"/>
+      <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1="0.1 0.2 0.3" rgb2="0.2 0.3 0.4"/>
+      <material name="grid" texture="grid" texrepeat="2 2" texuniform="true" reflectance="0"/>
+      <!-- Ground texture from dirt.png -->
+      <texture name="texdirt" type="2d" height="1" width="1" file="images/dirt.png"/>
+      <material name="MatGround" reflectance="0.01" specular="0.005" texture="texdirt" texrepeat="6 6" texuniform="true"/>
+      <material name="brick_material" rgba="0.7 0.3 0.2 1" specular="0.2"/>
+      <material name="foundation_material" rgba="0.4 0.4 0.4 1" specular="0.1"/>
+      <material name="mortar_material" rgba="0.3 0.3 0.3 1" specular="0.05"/>
+      <material name="robot_base_material" rgba="0.2 0.2 0.2 1" specular="0.1"/>
+    </asset>
+
+    <!-- 设置世界体，camera是相机，light是光源，geom是几何体，body是刚体，site是站点 -->
+    <!-- front相机配置与scene.xml保持一致，确保视角一致 -->
+    <worldbody>
+      <camera name="front" pos="1.090 0.000 1.390" quat="0.677988 0.200830 0.200830 0.677988" fovy="45"/>
+      <light pos="0 0 3" dir="0 0 -1" diffuse="1 1 1" specular="0.3 0.3 0.3"/>
+      <geom name="floor" size="3 3 0.01" type="plane" material="MatGround"/>
+      
+      <!-- Franka机器人底座：高度5cm（0.05m），中心在Z=0.025m，顶部在Z=0.05m -->
+      <!-- X=-0.041m使底座中心与Franka link0的几何中心（inertial center）对齐 -->
+      <!-- 机械臂的link0已经通过panda_masonry.xml抬高到Z=0.05m，正好位于底座顶部 -->
+      <body name="robot_base" pos="-0.041 0 0.025">
+        <geom name="robot_base_geom" type="cylinder" size="0.15 0.025" 
+              material="robot_base_material" condim="3" friction="1.0 0.1 0.1"
+              rgba="0.2 0.2 0.2 1"/>
+      </body>
+      
+      <!-- Foundation高度3cm（0.03m），中心在Z=0.015m，顶部在Z=0.03m -->
+      <body name="foundation_body" pos="0.6 0.0 0.015" quat="0.707 0 0 0.707">      
+        <geom name="foundation_geom" type="box" size="0.4 0.15 0.015" 
+              material="foundation_material" condim="3" friction="1.0 0.1 0.1"/>
+      </body>
+      
+      <!-- 第1层 (Row 1): 4块砖 -->
+      <!-- 新砖块尺寸：X=0.0285(57mm宽度), Y=0.097(194mm长度), Z=0.046(92mm高度) -->
+      <!-- 灰浆缝厚度：0.005米（5mm），相邻砖块中心间距=0.194+0.005=0.199米 -->
+      <!-- Foundation顶部0.03m，第1层中心=0.03+0.0025+0.046=0.0785m -->
+      <!-- 摩擦力设置：固定砖块使用friction="1.5 0.1 0.1"（各向异性摩擦，支持Coulomb friction cone） -->
+      <body pos="0.6 -0.2985 0.0785"><geom name="brick_r1_b1" type="box" size="0.0285 0.097 0.046" material="brick_material" condim="3" friction="1.5 0.1 0.1"/></body>
+      <body pos="0.6 -0.0995 0.0785"><geom name="brick_r1_b2" type="box" size="0.0285 0.097 0.046" material="brick_material" condim="3" friction="1.5 0.1 0.1"/></body>
+      <body pos="0.6 0.0995 0.0785"><geom name="brick_r1_b3" type="box" size="0.0285 0.097 0.046" material="brick_material" condim="3" friction="1.5 0.1 0.1"/></body>
+      <body pos="0.6 0.2985 0.0785"><geom name="brick_r1_b4" type="box" size="0.0285 0.097 0.046" material="brick_material" condim="3" friction="1.5 0.1 0.1"/></body>
+      <!-- 第1层灰浆缝（垂直方向） -->
+      <!-- 灰浆摩擦力：friction="1.0 0.1 0.1"（与foundation相同） -->
+      <body pos="0.6 -0.199 0.0785"><geom name="mortar_r1_v1" type="box" size="0.0285 0.0025 0.046" material="mortar_material" condim="3" friction="1.0 0.1 0.1"/></body>
+      <body pos="0.6 0.0 0.0785"><geom name="mortar_r1_v2" type="box" size="0.0285 0.0025 0.046" material="mortar_material" condim="3" friction="1.0 0.1 0.1"/></body>
+      <body pos="0.6 0.199 0.0785"><geom name="mortar_r1_v3" type="box" size="0.0285 0.0025 0.046" material="mortar_material" condim="3" friction="1.0 0.1 0.1"/></body>
+      <!-- 第1层下方灰浆缝（水平方向，中心在0.0325m） -->
+      <body pos="0.6 -0.199 0.0325"><geom name="mortar_r1_h1" type="box" size="0.0285 0.199 0.0025" material="mortar_material" condim="3" friction="1.0 0.1 0.1"/></body>
+      <body pos="0.6 0.0 0.0325"><geom name="mortar_r1_h2" type="box" size="0.0285 0.199 0.0025" material="mortar_material" condim="3" friction="1.0 0.1 0.1"/></body>
+      <body pos="0.6 0.199 0.0325"><geom name="mortar_r1_h3" type="box" size="0.0285 0.199 0.0025" material="mortar_material" condim="3" friction="1.0 0.1 0.1"/></body>
+
+      <!-- 第2层 (Row 2): 3块砖，交错排列，中心在0.173m -->
+      <body pos="0.6 -0.199 0.173"><geom name="brick_r2_b5" type="box" size="0.0285 0.097 0.046" material="brick_material" condim="3" friction="1.5 0.1 0.1"/></body>
+      <body pos="0.6 0.0 0.173"><geom name="brick_r2_b6" type="box" size="0.0285 0.097 0.046" material="brick_material" condim="3" friction="1.5 0.1 0.1"/></body>
+      <body pos="0.6 0.199 0.173"><geom name="brick_r2_b7" type="box" size="0.0285 0.097 0.046" material="brick_material" condim="3" friction="1.5 0.1 0.1"/></body>
+      <!-- 第2层灰浆缝（垂直方向） -->
+      <body pos="0.6 -0.0995 0.173"><geom name="mortar_r2_v1" type="box" size="0.0285 0.0025 0.046" material="mortar_material" condim="3" friction="1.0 0.1 0.1"/></body>
+      <body pos="0.6 0.0995 0.173"><geom name="mortar_r2_v2" type="box" size="0.0285 0.0025 0.046" material="mortar_material" condim="3" friction="1.0 0.1 0.1"/></body>
+      <!-- 第1-2层之间灰浆缝（水平方向，中心在0.127m） -->
+      <body pos="0.6 -0.199 0.127"><geom name="mortar_r1r2_h1" type="box" size="0.0285 0.199 0.0025" material="mortar_material" condim="3" friction="1.0 0.1 0.1"/></body>
+      <body pos="0.6 0.0 0.127"><geom name="mortar_r1r2_h2" type="box" size="0.0285 0.199 0.0025" material="mortar_material" condim="3" friction="1.0 0.1 0.1"/></body>
+      <body pos="0.6 0.199 0.127"><geom name="mortar_r1r2_h3" type="box" size="0.0285 0.199 0.0025" material="mortar_material" condim="3" friction="1.0 0.1 0.1"/></body>
+      
+      <!-- 第3层 (Row 3): 4块砖，与第1层对齐，中心在0.2675m -->
+      <body pos="0.6 -0.2985 0.2675"><geom name="brick_r3_b8" type="box" size="0.0285 0.097 0.046" material="brick_material" condim="3" friction="1.5 0.1 0.1"/></body>
+      <body pos="0.6 -0.0995 0.2675"><geom name="brick_r3_b9" type="box" size="0.0285 0.097 0.046" material="brick_material" condim="3" friction="1.5 0.1 0.1"/></body>
+      <body pos="0.6 0.0995 0.2675"><geom name="brick_r3_b10" type="box" size="0.0285 0.097 0.046" material="brick_material" condim="3" friction="1.5 0.1 0.1"/></body>
+      <body pos="0.6 0.2985 0.2675"><geom name="brick_r3_b11" type="box" size="0.0285 0.097 0.046" material="brick_material" condim="3" friction="1.5 0.1 0.1"/></body>
+      <!-- 第3层灰浆缝（垂直方向） -->
+      <body pos="0.6 -0.199 0.2675"><geom name="mortar_r3_v1" type="box" size="0.0285 0.0025 0.046" material="mortar_material" condim="3" friction="1.0 0.1 0.1"/></body>
+      <body pos="0.6 0.0 0.2675"><geom name="mortar_r3_v2" type="box" size="0.0285 0.0025 0.046" material="mortar_material" condim="3" friction="1.0 0.1 0.1"/></body>
+      <body pos="0.6 0.199 0.2675"><geom name="mortar_r3_v3" type="box" size="0.0285 0.0025 0.046" material="mortar_material" condim="3" friction="1.0 0.1 0.1"/></body>
+      <!-- 第2-3层之间灰浆缝（水平方向，中心在0.2215m） -->
+      <body pos="0.6 -0.199 0.2215"><geom name="mortar_r2r3_h1" type="box" size="0.0285 0.199 0.0025" material="mortar_material" condim="3" friction="1.0 0.1 0.1"/></body>
+      <body pos="0.6 0.0 0.2215"><geom name="mortar_r2r3_h2" type="box" size="0.0285 0.199 0.0025" material="mortar_material" condim="3" friction="1.0 0.1 0.1"/></body>
+      <body pos="0.6 0.199 0.2215"><geom name="mortar_r2r3_h3" type="box" size="0.0285 0.199 0.0025" material="mortar_material" condim="3" friction="1.0 0.1 0.1"/></body>
+
+      <!-- 第4层 (Row 4): 2块砖 + 中间空缺，中心在0.362m -->
+      <body pos="0.6 -0.199 0.362"><geom name="brick_r4_b12" type="box" size="0.0285 0.097 0.046" material="brick_material" condim="3" friction="1.5 0.1 0.1"/></body>
+      <body pos="0.6 0.199 0.362"><geom name="brick_r4_b13" type="box" size="0.0285 0.097 0.046" material="brick_material" condim="3" friction="1.5 0.1 0.1"/></body>
+      <!-- 第3-4层之间灰浆缝（水平方向，中心在0.316m） -->
+      <body pos="0.6 -0.199 0.316"><geom name="mortar_r3r4_h1" type="box" size="0.0285 0.199 0.0025" material="mortar_material" condim="3" friction="1.0 0.1 0.1"/></body>
+      <body pos="0.6 0.199 0.316"><geom name="mortar_r3r4_h2" type="box" size="0.0285 0.199 0.0025" material="mortar_material" condim="3" friction="1.0 0.1 0.1"/></body>
+      
+      <!-- 设置目标站点，pos是位置，size是大小，rgba是颜色，type是类型 -->
+      <!-- 透明度设为0，避免在录制视频中显示 -->
+      <!-- 目标位置：第4层中间空缺的中心，Z=0.362m -->
+      <site name="target_site" pos="0.6 0.0 0.362" 
+            size="0.01 0.01 0.01" rgba="0 1 0 0" type="sphere"/>
+
+      <!-- 设置可移动块，pos是位置，size是大小，rgba是颜色，type是类型 -->
+      <!-- 新砖块尺寸：X=0.0285(57mm宽度), Y=0.097(194mm长度), Z=0.046(92mm高度) -->
+      <body name="moveable_block" pos="0.5 0.0 0.046">
+        <freejoint name="block_joint"/>
+        <geom name="block" type="box" size="0.0285 0.097 0.046" 
+              material="brick_material" condim="4" friction="2.0 0.1 0.1" 
+              mass="0.1" density="2000" rgba="0.7 0.3 0.2 1"
+              solimp="0.99 0.99 0.01" solref="0.001 1"/>
+        <!-- 透明度设为0，避免在录制视频中显示 -->
+        <site name="block_site" pos="0 0 0" size="0.01" rgba="1 0 0 0"/>
+      </body>
+      
+      <!-- 设置末端执行器，mocap是运动捕捉，pos是位置，quat是四元数，size是大小，rgba是颜色，contype是碰撞类型，conaffinity是碰撞亲和力 -->
+      <!-- 透明度设为0，避免在录制视频中显示 -->
+      <body name="ee_mocap" mocap="true" pos="0.4 0.0 0.3">
+        <geom name="ee_mocap_geom" type="sphere" size="0.02" rgba="0 1 0 0" contype="0" conaffinity="0"/>
+      </body>
+      
+      </worldbody>
+
+    <!-- 设置传感器，framepos是位置，framequat是四元数，framelinvel是线速度 -->
+    <sensor>
+      <framepos name="block_pos" objtype="geom" objname="block"/>
+      <framequat name="block_quat" objtype="geom" objname="block"/>
+      <framelinvel name="block_vel" objtype="body" objname="moveable_block"/>
+    </sensor>
+    
+    </mujoco>
