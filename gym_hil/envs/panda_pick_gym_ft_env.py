@@ -30,9 +30,11 @@ _SAMPLING_BOUNDS = np.asarray([[0.3, -0.15], [0.5, 0.15]])
 class PandaPickCubeGymFtEnv(FrankaGymEnv):
     """Environment for a Panda robot picking up a cube with Force/Torque sensing.
     
-    This environment extends PandaPickCubeGymEnv by including force and torque
+    This environment extends PandaPickCubeGymEnv by optionally including force and torque
     measurements from the robot's sensors. The force/torque information is included
-    in the observation space and can be used for learning force-aware manipulation policies.
+    in the observation space when `include_force_torque=True` (default), similar to how
+    velocity is optionally included via `include_velocity`. This allows for flexible
+    multimodal observation configurations.
     """
 
     def __init__(
@@ -46,9 +48,11 @@ class PandaPickCubeGymFtEnv(FrankaGymEnv):
         reward_type: str = "sparse",
         random_block_position: bool = False,
         include_velocity: bool = True,
+        include_force_torque: bool = True,
     ):
         self.reward_type = reward_type
         self.include_velocity = include_velocity
+        self.include_force_torque = include_force_torque
 
         super().__init__(
             seed=seed,
@@ -64,11 +68,14 @@ class PandaPickCubeGymFtEnv(FrankaGymEnv):
         # Task-specific setup
         self._block_z = self._model.geom("block").size[2]
         self._random_block_position = random_block_position
+        
+        # terminate_on_success: 是否在成功时终止episode（默认True，保持向后兼容）
+        self._terminate_on_success = True  # 默认值，可以通过属性设置
 
         # Setup observation space properly to match what _compute_observation returns
         # Observation space design:
         #   - "state":  agent (robot) configuration as a single Box
-        #     Includes: joint positions, velocities (optional), gripper pose (raw 0-255), TCP position, force/torque
+        #     Includes: joint positions, velocities (optional), gripper pose (raw 0-255), TCP position, force/torque (optional)
         #   - "environment_state": block position in the world as a single Box
         #   - "pixels": (optional) dict of camera views if image observations are enabled
 
@@ -80,9 +87,12 @@ class PandaPickCubeGymFtEnv(FrankaGymEnv):
             base_robot_dim += 7
         
         # Force/Torque dimensions: wrist_force (3D) + joint_torques (7 joints × 3D each = 21D) = 24D
-        force_torque_dim = 24
-        
-        agent_dim = base_robot_dim + force_torque_dim
+        # Add force/torque if enabled (similar to velocity, as optional multimodal information)
+        if self.include_force_torque:
+            force_torque_dim = 24
+            agent_dim = base_robot_dim + force_torque_dim
+        else:
+            agent_dim = base_robot_dim
         agent_box = spaces.Box(-np.inf, np.inf, (agent_dim,), dtype=np.float32)
         env_box = spaces.Box(-np.inf, np.inf, (3,), dtype=np.float32)
 
@@ -171,7 +181,12 @@ class PandaPickCubeGymFtEnv(FrankaGymEnv):
             block_pos[:2] > (_SAMPLING_BOUNDS[1] + 0.05)
         )
 
-        terminated = bool(success or exceeded_bounds)
+        # 如果terminate_on_success=False，成功时不会终止，继续运行直到max_episode_steps
+        if self._terminate_on_success:
+            terminated = bool(success or exceeded_bounds)
+        else:
+            # 即使成功也不终止，只因为超出边界而终止
+            terminated = bool(exceeded_bounds)
 
         return obs, rew, terminated, False, {"succeed": success}
 
@@ -203,9 +218,10 @@ class PandaPickCubeGymFtEnv(FrankaGymEnv):
         # Concatenate base robot state
         robot_state = np.concatenate(robot_state_parts)
         
-        # Add force/torque information (always included in this environment)
-        force_torque = self._get_force_torque().astype(np.float32)
-        robot_state = np.concatenate([robot_state, force_torque])
+        # Add force/torque information if enabled (optional multimodal information, similar to velocity)
+        if self.include_force_torque:
+            force_torque = self._get_force_torque().astype(np.float32)
+            robot_state = np.concatenate([robot_state, force_torque])
 
         # Assemble observation respecting the newly defined observation_space
         block_pos = self._data.sensor("block_pos").data.astype(np.float32)
@@ -285,13 +301,16 @@ if __name__ == "__main__":
     from gym_hil import PassiveViewerWrapper
 
     # Test environment with force/torque enabled
-    env = PandaPickCubeGymFtEnv(render_mode="human", include_velocity=True)
+    env = PandaPickCubeGymFtEnv(render_mode="human", include_velocity=True, include_force_torque=True)
     env = PassiveViewerWrapper(env)
     obs, info = env.reset()
     print(f"Observation space: {env.observation_space}")
     print(f"Observation keys: {obs.keys()}")
     print(f"Agent state shape: {obs['agent_pos'].shape}")
-    print(f"Force/Torque included: {obs['agent_pos'].shape[0] >= 35}")  # Should be 35+ with FT
+    print(f"Velocity included: {env.include_velocity}")
+    print(f"Force/Torque included: {env.include_force_torque}")
+    print(f"Expected dim with FT: {35 if env.include_velocity else 28}")
+    print(f"Expected dim without FT: {11 if not env.include_velocity else 18}")
     
     for _ in range(100):
         obs, reward, terminated, truncated, info = env.step(np.random.uniform(-1, 1, 7))
