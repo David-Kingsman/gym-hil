@@ -1,0 +1,52 @@
+<mujoco model="panda_pick_plate_scene">
+    <include file="panda_vacuum.xml"/>
+
+    <option timestep=".001" noslip_iterations="5" noslip_tolerance="0"/>
+
+    <statistic center="0.3 0 0.4" extent=".8"/>
+
+    <visual>
+      <headlight diffuse=".4 .4 .4" ambient=".5 .5 .5"/>
+      <global azimuth="160" elevation="-20" offheight="128" offwidth="128"/>
+      <quality offsamples="8"/>
+    </visual>
+
+    <asset>
+      <texture type="skybox" builtin="gradient" rgb1=".3 .5 .7" rgb2="0 0 0" width="32" height="512"/>
+      <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1=".1 .2 .3" rgb2=".2 .3 .4"/>
+      <material name="grid" texture="grid" texrepeat="2 2" texuniform="true" reflectance="0"/>
+      
+      <material name="window_glass" rgba="0.6 0.8 0.9 0.5" shininess="0.8" reflectance="0.3" specular="0.5"/>
+    </asset>
+
+    <keyframe>
+        <key name="home" qpos="0 0.195 0 -2.43 0 2.62 0.785 0.5 0 0.005 1 0 0 0"/>
+    </keyframe>
+
+    <worldbody>
+      <camera name="front" pos="1.3 0.0 0.7" quat="0.5963678 0.3799282 0.3799282 0.5963678" fovy="45"/>
+      <light pos="0 0 3" dir="0 0 -1" diffuse="1 1 1" specular=".3 .3 .3"/>
+      <light pos="0 -.5 .4" mode="targetbodycom" target="plate_body" diffuse=".8 .8 .8" specular=".3 .3 .3"/>
+      
+      <geom name="floor" size="3 3 0.01" type="plane" material="grid" 
+            contype="1" conaffinity="1"
+            solimp="0.99 0.99 0.01" solref="0.002 1" friction="2 2 2"/>
+
+      <body name="plate_body" pos="0.5 0 .005">
+        <freejoint name="plate_joint"/>
+        <geom name="plate" type="box" size="0.2 0.15 0.005" mass="1.0" material="window_glass"
+              contype="1" conaffinity="1"
+              solimp="0.99 0.99 0.01" solref="0.002 1" friction="10 10 10" condim="6"/>
+      </body>
+
+      <body name="target" pos=".15 0 .5" quat="0 1 0 0" mocap="true">
+        <geom name="target" type="box" size=".03 .03 .03" contype="0" conaffinity="0" rgba=".6 .3 .3 0"/>
+      </body>
+    </worldbody>
+
+    <sensor>
+      <framepos name="plate_pos" objtype="geom" objname="plate"/>
+      <framequat name="plate_quat" objtype="geom" objname="plate"/>
+      <framepos name="block_pos" objtype="geom" objname="plate"/>
+    </sensor>
+</mujoco>
