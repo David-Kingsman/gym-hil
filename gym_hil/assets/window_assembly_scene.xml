@@ -1,0 +1,86 @@
+<mujoco model="window_assembly_scene">
+    <include file="panda_vacuum.xml"/>
+
+    <option timestep=".001" noslip_iterations="50" noslip_tolerance="0" cone="elliptic" impratio="100"/>
+
+    <statistic center="0.3 0 0.4" extent=".8"/>
+
+    <visual>
+        <headlight diffuse=".4 .4 .4" ambient=".5 .5 .5"/>
+        <global azimuth="160" elevation="-20"/>
+        <quality offsamples="8"/>
+    </visual>
+
+    <asset>
+        <texture type="skybox" builtin="gradient" rgb1=".3 .5 .7" rgb2="0 0 0" width="32" height="512"/>
+        <texture name="wall_tex" type="2d" builtin="checker" width="512" height="512" rgb1=".8 .8 .8" rgb2=".6 .6 .6"/>
+        <material name="wall_mat" texture="wall_tex" texrepeat="2 2" reflectance="0.1"/>
+        
+        <material name="glass_mat" rgba="0.6 0.8 1.0 0.5" shininess="0.9" reflectance="0.5"/>
+        <material name="frame_mat" rgba="0.2 0.2 0.2 1" shininess="0.1"/>
+        <material name="rubber_seal" rgba="0.1 0.1 0.1 1"/> 
+    </asset>
+
+    <worldbody>
+        <geom name="floor" size="3 3 0.01" type="plane" material="wall_mat" condim="3"/>
+
+        <body name="facade_wall" pos="0.6 0 0.4" euler="0 0 1.57">
+            <geom name="wall_left" type="box" size="0.4 0.05 0.4" pos="-0.5 0 0" material="wall_mat"/>
+            
+            <geom name="wall_right" type="box" size="0.4 0.05 0.4" pos="0.5 0 0" material="wall_mat"/>
+
+            <geom name="wall_bottom" type="box" size="0.1 0.05 0.05" pos="0 0 -0.35" material="wall_mat"/>
+
+            <geom name="slot_left" type="box" size="0.01 0.05 0.3" pos="-0.152 0 0" material="rubber_seal" friction="1.5 0.05 0.001"/>
+            
+            <geom name="slot_right" type="box" size="0.01 0.05 0.3" pos="0.152 0 0" material="rubber_seal" friction="1.5 0.05 0.001"/>
+            
+            <site name="target_site" pos="0 0 0" size="0.01" rgba="0 1 0 0.5"/>
+        </body>
+
+        <!-- Window Panel: Initially positioned on the ground, lying flat (horizontal) -->
+        <!-- Position: On the ground, left side (Y=-0.3), lying flat orientation -->
+        <!-- Similar to plate: Z position = half-thickness, so bottom touches ground at Z=0 -->
+        <!-- Size: 0.25m x 0.2m x 0.005m (half-extents) = 0.5m x 0.4m x 0.01m full size -->
+        <!-- No rotation needed - just lay flat like the plate -->
+        <body name="window_panel" pos="0.4 -0.3 0.005">
+            <freejoint name="window_joint"/>
+            <!-- Collision geometry: lying flat panel, thickness in Z direction -->
+            <!-- Size represents half-extents: 0.25m (X=width) x 0.2m (Y=length) x 0.005m (Z=thickness) -->
+            <geom name="window_collision" type="box" size="0.25 0.2 0.005" mass="1.5" 
+                  contype="1" conaffinity="1" priority="1"
+                  solimp="0.99 0.99 0.01" solref="0.002 1" friction="10 10 10" condim="6" 
+                  rgba="0.8 0.8 0.8 0"/>
+            
+            <!-- Visual frame: Thick border like real window (wood/metal frame around glass) -->
+            <!-- Frame dimensions for flat orientation: X=width, Y=length, Z=frame thickness -->
+            <!-- Top frame (front edge) -->
+            <geom name="visual_frame_top" type="box" size="0.25 0.02 0.004" pos="0 0.18 0.004" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+            <!-- Bottom frame (back edge) -->
+            <geom name="visual_frame_bottom" type="box" size="0.25 0.02 0.004" pos="0 -0.18 0.004" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+            <!-- Left frame -->
+            <geom name="visual_frame_left" type="box" size="0.02 0.18 0.004" pos="-0.23 0 0.004" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+            <!-- Right frame -->
+            <geom name="visual_frame_right" type="box" size="0.02 0.18 0.004" pos="0.23 0 0.004" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+            
+            <!-- Visual glass (center pane, slightly recessed) -->
+            <geom name="visual_glass" type="box" size="0.21 0.16 0.001" pos="0 0 0.003" material="glass_mat" rgba="0.7 0.8 0.9 0.6" contype="0" conaffinity="0"/>
+            
+            <site name="window_grasp_site" pos="0 0 0" size="0.02" rgba="1 0 0 0"/>
+        </body>
+
+        <!-- Mocap body for end-effector control (required!) -->
+        <!-- Initial position is approximate; reset_robot() will sync it to actual TCP position -->
+        <body name="target" pos="0.4 0 0.3" quat="1 0 0 0" mocap="true">
+            <geom name="target_geom" type="box" size="0.01 0.01 0.01" 
+                  contype="0" conaffinity="0" rgba="0 1 0 0"/>
+        </body>
+    </worldbody>
+
+    <sensor>
+        <framepos name="window_pos" objtype="body" objname="window_panel"/>
+        <framequat name="window_quat" objtype="body" objname="window_panel"/>
+        <framepos name="pinch_pos" objtype="site" objname="pinch"/>
+        <framequat name="pinch_quat" objtype="site" objname="pinch"/>
+    </sensor>
+</mujoco>

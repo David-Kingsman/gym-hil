@@ -1,0 +1,257 @@
+<mujoco model="kuka_vacuum">
+  <compiler angle="radian" meshdir="kuka_iiwa_14/assets" autolimits="true"/>
+
+  <option integrator="implicitfast"/>
+
+  <default>
+    <default class="iiwa">
+      <material specular="0.5" shininess="0.25"/>
+      <joint axis="0 0 1" armature="0.1" damping="1"/>
+      <default class="joint1">
+        <joint range="-2.96706 2.96706"/>
+        <default class="joint2">
+          <joint range="-2.0944 2.0944"/>
+        </default>
+      </default>
+      <default class="joint3">
+        <joint range="-3.05433 3.05433"/>
+      </default>
+      <default class="visual">
+        <geom type="mesh" contype="0" conaffinity="0" group="2" material="gray"/>
+      </default>
+      <default class="collision">
+        <geom group="3"/>
+      </default>
+      <site size="0.001" rgba="1 0 0 1" group="4"/>
+    </default>
+    
+    <default class="vacuum_gripper">
+      <default class="vacuum_gripper/visual">
+         <geom contype="0" conaffinity="0" group="2"/>
+      </default>
+      <default class="vacuum_gripper/collision">
+            <geom group="3" rgba="0 1 0 0.3" contype="1" conaffinity="1" 
+              condim="6" friction="10 10 10" margin="0.002" 
+              solimp="0.99 0.99 0.01" solref="0.004 1"/>
+      </default>
+    </default>
+  </default>
+
+  <asset>
+    <material class="iiwa" name="gray" rgba="0.4 0.4 0.4 1"/>
+    <material class="iiwa" name="light_gray" rgba="0.6 0.6 0.6 1"/>
+    <material class="iiwa" name="black" rgba="0 0 0 1"/>
+    <material class="iiwa" name="orange" rgba="1 0.423529 0.0392157 1"/>
+    
+    <material name="pp_black" rgba="0.1 0.1 0.1 1" specular="0.5" shininess="0.2"/>
+    <material name="pp_green" rgba="0.0 0.6 0.3 1" specular="0.2" shininess="0.1"/>
+    <material name="pp_yellow" rgba="0.95 0.8 0.1 1" specular="0.1" shininess="0.1"/>
+
+    <mesh file="link_0.obj"/>
+    <mesh file="link_1.obj"/>
+    <mesh file="link_2_orange.obj"/>
+    <mesh file="link_2_grey.obj"/>
+    <mesh file="link_3.obj"/>
+    <mesh file="band.obj"/>
+    <mesh file="kuka.obj"/>
+    <mesh file="link_4_orange.obj"/>
+    <mesh file="link_4_grey.obj"/>
+    <mesh file="link_5.obj"/>
+    <mesh file="link_6_orange.obj"/>
+    <mesh file="link_6_grey.obj"/>
+    <mesh file="link_7.obj"/>
+    
+    <!-- PowerPick vacuum gripper meshes -->
+    <!-- Note: meshdir is set to kuka_iiwa_14/assets, so paths are relative to that directory -->
+    <!-- From kuka_iiwa_14/assets to assets/powerpick/meshes/pp30/ is ../../powerpick/meshes/pp30/ -->
+    <mesh name="pp_frame" file="../../powerpick/meshes/pp30/frame_reduced.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="pp_bellows" file="../../powerpick/meshes/pp30/bellows.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="pp_lips" file="../../powerpick/meshes/pp30/lips.stl" scale="0.001 0.001 0.001"/>
+  </asset>
+
+  <worldbody>
+    <light name="top" pos="0 0 2" mode="trackcom"/>
+    <body name="base" childclass="iiwa">
+      <inertial mass="5" pos="-0.1 0 0.07" diaginertia="0.05 0.06 0.03"/>
+      <geom class="visual" mesh="link_0"/>
+      <geom class="collision" size="0.12" pos="0 0 0.03"/>
+      <geom class="collision" size="0.08" pos="-0.08 0 0.103"/>
+      <geom class="collision" size="0.08" pos="-0.08 0 0.04"/>
+      <geom class="collision" size="0.1" pos="0 0 0.14"/>
+      <body name="link1" pos="0 0 0.1575">
+        <inertial mass="5.76" pos="0 -0.03 0.12" diaginertia="0.0333 0.033 0.0123"/>
+        <joint name="joint1" class="joint1"/>
+        <site name="joint1"/>
+        <geom class="visual" mesh="link_1"/>
+        <geom class="collision" size="0.08" pos="0 0 -0.0005"/>
+        <geom class="collision" size="0.075" pos="0.01 -0.025 0.0425"/>
+        <geom class="collision" size="0.075" pos="-0.01 -0.025 0.0425"/>
+        <geom class="collision" size="0.07" pos="0.01 -0.045 0.1025"/>
+        <geom class="collision" size="0.07" pos="-0.01 -0.045 0.1025"/>
+        <body name="link2" pos="0 0 0.2025" quat="0 0 1 1">
+          <inertial mass="6.35" pos="0.0003 0.059 0.042" diaginertia="0.0305 0.0304 0.011" quat="0 0 1 1"/>
+          <joint name="joint2" class="joint2"/>
+          <site name="joint2"/>
+          <geom class="visual" material="orange" mesh="link_2_orange"/>
+          <geom class="visual" mesh="link_2_grey"/>
+          <geom class="collision" size="0.095" pos="0 0 -0.01"/>
+          <geom class="collision" size="0.09" pos="0 0 0.045"/>
+          <geom class="collision" size="0.07" pos="-0.01 0.04 0.054"/>
+          <geom class="collision" size="0.065" pos="-0.01 0.09 0.04"/>
+          <geom class="collision" size="0.065" pos="-0.01 0.13 0.02"/>
+          <geom class="collision" size="0.07" pos="0.01 0.04 0.054"/>
+          <geom class="collision" size="0.065" pos="0.01 0.09 0.04"/>
+          <geom class="collision" size="0.065" pos="0.01 0.13 0.02"/>
+          <geom class="collision" size="0.075" pos="0 0.18 0"/>
+          <body name="link3" pos="0 0.2045 0" quat="0 0 1 1">
+            <inertial mass="3.5" pos="0 0.03 0.13" diaginertia="0.025 0.0238 0.0076"/>
+            <joint name="joint3" class="joint1"/>
+            <site name="joint3"/>
+            <geom class="visual" mesh="link_3"/>
+            <geom class="visual" material="light_gray" mesh="band"/>
+            <geom class="visual" material="black" mesh="kuka"/>
+            <geom class="collision" size="0.075" pos="0 0 0.0355"/>
+            <geom class="collision" size="0.06" pos="0.01 0.023 0.0855"/>
+            <geom class="collision" size="0.055" pos="0.01 0.048 0.1255"/>
+            <geom class="collision" size="0.06" pos="0.01 0.056 0.1755"/>
+            <geom class="collision" size="0.06" pos="-0.01 0.023 0.0855"/>
+            <geom class="collision" size="0.055" pos="-0.01 0.048 0.1255"/>
+            <geom class="collision" size="0.06" pos="-0.01 0.056 0.1755"/>
+            <geom class="collision" size="0.075" pos="0 0.045 0.2155"/>
+            <geom class="collision" size="0.075" pos="0 0 0.2155"/>
+            <body name="link4" pos="0 0 0.2155" quat="1 1 0 0">
+              <inertial mass="3.5" pos="0 0.067 0.034" diaginertia="0.017 0.0164 0.006" quat="1 1 0 0"/>
+              <joint name="joint4" class="joint2"/>
+              <site name="joint4"/>
+              <geom class="visual" material="orange" mesh="link_4_orange"/>
+              <geom class="visual" mesh="link_4_grey"/>
+              <geom class="collision" size="0.078" pos="0 0.01 0.046"/>
+              <geom class="collision" size="0.06" pos="0.01 0.06 0.052"/>
+              <geom class="collision" size="0.065" pos="0.01 0.12 0.034"/>
+              <geom class="collision" size="0.06" pos="-0.01 0.06 0.052"/>
+              <geom class="collision" size="0.065" pos="-0.01 0.12 0.034"/>
+              <geom class="collision" size="0.075" pos="0 0.184 0"/>
+              <body name="link5" pos="0 0.1845 0" quat="0 0 1 1">
+                <inertial mass="3.5" pos="0.0001 0.021 0.076" diaginertia="0.01 0.0087 0.00449"/>
+                <joint name="joint5" class="joint1"/>
+                <site name="joint5"/>
+                <geom class="visual" mesh="link_5"/>
+                <geom class="visual" material="light_gray" mesh="band"/>
+                <geom class="visual" material="black" mesh="kuka"/>
+                <geom class="collision" size="0.075" pos="0 0 0.0335"/>
+                <geom class="collision" size="0.05" pos="-0.012 0.031 0.0755"/>
+                <geom class="collision" size="0.05" pos="0.012 0.031 0.0755"/>
+                <geom class="collision" size="0.04" pos="-0.012 0.06 0.1155"/>
+                <geom class="collision" size="0.04" pos="0.012 0.06 0.1155"/>
+                <geom class="collision" size="0.04" pos="-0.01 0.065 0.1655"/>
+                <geom class="collision" size="0.04" pos="0.01 0.065 0.1655"/>
+                <geom class="collision" size="0.035" pos="-0.012 0.065 0.1855"/>
+                <geom class="collision" size="0.035" pos="0.012 0.065 0.1855"/>
+                <body name="link6" pos="0 0 0.2155" quat="1 1 0 0">
+                  <inertial mass="1.8" pos="0 0.0006 0.0004" diaginertia="0.0049 0.0047 0.0036" quat="1 1 0 0"/>
+                  <joint name="joint6" class="joint2"/>
+                  <site name="joint6"/>
+                  <geom class="visual" material="orange" mesh="link_6_orange"/>
+                  <geom class="visual" mesh="link_6_grey"/>
+                  <geom class="collision" size="0.055" pos="0 0 -0.059"/>
+                  <geom class="collision" size="0.065" pos="0 -0.03 0.011"/>
+                  <geom class="collision" size="0.08"/>
+                  <body name="link7" pos="0 0.081 0" quat="0 0 1 1">
+                    <inertial mass="1.2" pos="0 0 0.02" diaginertia="0.001 0.001 0.001"/>
+                    <joint name="joint7" class="joint3"/>
+                    <site name="joint7"/>
+                    <geom class="visual" mesh="link_7"/>
+                    <geom class="collision" size="0.06" pos="0 0 0.001"/>
+                    <site name="attachment_site" pos="0 0 0.045"/>
+                    
+                    <!-- Vacuum gripper attached to link7 -->
+                    <body name="vacuum_gripper" pos="0 0 0.15" quat="0 1 0 0" childclass="vacuum_gripper">
+                      <inertial mass="0.5" pos="0 0 0.05" diaginertia="0.005 0.005 0.005"/>
+                      
+                      <geom type="mesh" mesh="pp_frame" material="pp_black" 
+                            pos="-0.135010 -0.792761 -0.235147" quat="1 0 0 0"
+                            contype="0" conaffinity="0" group="2"/>
+                      <geom type="mesh" mesh="pp_bellows" material="pp_green" 
+                            pos="-0.135010 -0.792761 -0.235147" quat="1 0 0 0"
+                            contype="0" conaffinity="0" group="2"/>
+                      <geom type="mesh" mesh="pp_lips" material="pp_yellow" 
+                            pos="-0.135010 -0.792761 -0.235147" quat="1 0 0 0"
+                            contype="0" conaffinity="0" group="2"/>
+
+                      <geom name="col_frame_x" type="box" size="0.12 0.02 0.02" pos="0 0 0.05"
+                            group="3" rgba="0 1 0 0.3" contype="1" conaffinity="1"/>
+                      <geom name="col_frame_y" type="box" size="0.02 0.12 0.02" pos="0 0 0.05"
+                            group="3" rgba="0 1 0 0.3" contype="1" conaffinity="1"/>
+
+                      <geom name="col_cup_1" type="cylinder" size="0.025 0.01" pos="0.085 0.085 -0.020" class="vacuum_gripper/collision"/>
+                      <geom name="col_cup_2" type="cylinder" size="0.025 0.01" pos="0.085 -0.085 -0.020" class="vacuum_gripper/collision"/>
+                      <geom name="col_cup_3" type="cylinder" size="0.025 0.01" pos="-0.085 0.085 -0.020" class="vacuum_gripper/collision"/>
+                      <geom name="col_cup_4" type="cylinder" size="0.025 0.01" pos="-0.085 -0.085 -0.020" class="vacuum_gripper/collision"/>
+
+                      <site name="pinch" pos="0 0 -0.020" size="0.003" rgba="1 0 0 0.5"/>
+                    </body>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <contact>
+    <exclude body1="base" body2="link1"/>
+    <exclude body1="base" body2="link2"/>
+    <exclude body1="base" body2="link3"/>
+    <exclude body1="link1" body2="link3"/>
+    <exclude body1="link3" body2="link5"/>
+    <exclude body1="link4" body2="link7"/>
+    <exclude body1="link5" body2="link7"/>
+  </contact>
+
+  <actuator>
+    <!-- Convert to motor actuators (like Panda) for better compatibility with opspace controller -->
+    <!-- Using reasonable torque limits: larger joints can handle more torque -->
+    <motor name="actuator1" joint="joint1" ctrlrange="-87 87"/>
+    <motor name="actuator2" joint="joint2" ctrlrange="-87 87"/>
+    <motor name="actuator3" joint="joint3" ctrlrange="-87 87"/>
+    <motor name="actuator4" joint="joint4" ctrlrange="-87 87"/>
+    <motor name="actuator5" joint="joint5" ctrlrange="-12 12"/>
+    <motor name="actuator6" joint="joint6" ctrlrange="-12 12"/>
+    <motor name="actuator7" joint="joint7" ctrlrange="-12 12"/>
+    <adhesion name="fingers_actuator" body="vacuum_gripper" ctrlrange="0 1" gain="200"/>
+  </actuator>
+
+  <sensor>
+    <!-- Joint position sensors (using same naming as Panda for compatibility) -->
+    <jointpos name="panda/joint1_pos" joint="joint1"/>
+    <jointpos name="panda/joint2_pos" joint="joint2"/>
+    <jointpos name="panda/joint3_pos" joint="joint3"/>
+    <jointpos name="panda/joint4_pos" joint="joint4"/>
+    <jointpos name="panda/joint5_pos" joint="joint5"/>
+    <jointpos name="panda/joint6_pos" joint="joint6"/>
+    <jointpos name="panda/joint7_pos" joint="joint7"/>
+    <jointvel name="panda/joint1_vel" joint="joint1"/>
+    <jointvel name="panda/joint2_vel" joint="joint2"/>
+    <jointvel name="panda/joint3_vel" joint="joint3"/>
+    <jointvel name="panda/joint4_vel" joint="joint4"/>
+    <jointvel name="panda/joint5_vel" joint="joint5"/>
+    <jointvel name="panda/joint6_vel" joint="joint6"/>
+    <jointvel name="panda/joint7_vel" joint="joint7"/>
+    <torque name="panda/joint1_torque" site="joint1"/>
+    <torque name="panda/joint2_torque" site="joint2"/>
+    <torque name="panda/joint3_torque" site="joint3"/>
+    <torque name="panda/joint4_torque" site="joint4"/>
+    <torque name="panda/joint5_torque" site="joint5"/>
+    <torque name="panda/joint6_torque" site="joint6"/>
+    <torque name="panda/joint7_torque" site="joint7"/>
+    <force name="panda/wrist_force" site="attachment_site"/>
+    <!-- End-effector pose sensors (using same naming as Panda for compatibility) -->
+    <framepos name="2f85/pinch_pos" objtype="site" objname="pinch"/>
+    <framequat name="2f85/pinch_quat" objtype="site" objname="pinch"/>
+    <framelinvel name="2f85/pinch_vel" objtype="site" objname="pinch"/>
+    <frameangvel name="2f85/pinch_angvel" objtype="site" objname="pinch"/>
+  </sensor>
+</mujoco>
+
