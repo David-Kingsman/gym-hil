@@ -119,6 +119,41 @@ register(
 )
 
 register(
+    id="gym_hil/PandaPickPlateGamepad6DoF-v0",
+    entry_point="gym_hil.wrappers.factory:make_env",
+    max_episode_steps=100,
+    kwargs={
+        "env_id": "gym_hil/PandaPickPlateBase-v0",  # Use the plate pick base environment
+        "use_viewer": True,
+        "use_inputs_control": True,
+        "use_gamepad": True,
+        "use_gamepad_6dof": True,  # Enable 6-DoF gamepad control (xyz + rx ry rz)
+        "use_gripper": True,  # Vacuum gripper control
+        "roll_step_size": 0.01,  # Step size for roll rotation (radians)
+        "pitch_step_size": 0.01,  # Step size for pitch rotation (radians)
+        "yaw_step_size": 0.01,  # Step size for yaw rotation (radians)
+    },
+)
+
+register(
+    id="gym_hil/PandaPickPlateMetaQuest-v0",
+    entry_point="gym_hil.wrappers.factory:make_env",
+    max_episode_steps=200,
+    kwargs={
+        "env_id": "gym_hil/PandaPickPlateBase-v0",  # Use the plate pick base environment
+        "use_viewer": True,
+        "use_inputs_control": True,
+        "use_meta_quest": True,
+        "use_gripper": True,  # Vacuum gripper control
+        "meta_quest_config": {
+            "translation_scale": 5,  # Position scaling (reduced from 10 to prevent sudden jumps when normalized values approach 1.0)
+            "rotation_scale": 0.1,       # Rotation scaling (similar to spacemouse's 0.08, adjusted for cubic scaling)
+            "deadzone": 0.001,          # Deadzone (reduced from 0.1 to 0.001 to match spacemouse's sensitivity)
+        },
+    },
+)
+
+register(
     id="gym_hil/PandaPickCubeKeyboard-v0",
     entry_point="gym_hil.wrappers.factory:make_env",
     max_episode_steps=100,
