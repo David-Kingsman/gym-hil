@@ -163,6 +163,12 @@ class FrankaGymEnv(MujocoGymEnv):
         self._panda_ctrl_ids = np.asarray([self._model.actuator(f"actuator{i}").id for i in range(1, 8)])
         self._gripper_ctrl_id = self._model.actuator("fingers_actuator").id
         self._pinch_site_id = self._model.site("pinch").id
+        
+        # Detect if this is a vacuum gripper (check if actuator is adhesion type)
+        # Adhesion actuators use MuJoCo's adhesion mechanism (trntype=5)
+        # mjTRN_ADHESION = 5 in MuJoCo
+        actuator_trntype = self._model.actuator(self._gripper_ctrl_id).trntype[0]
+        self._is_vacuum_gripper = (actuator_trntype == 5)  # 5 = mjTRN_ADHESION
 
         # Setup observation and action spaces
         self._setup_observation_space()
@@ -218,14 +224,18 @@ class FrankaGymEnv(MujocoGymEnv):
         )
 
     def reset_robot(self):
-        """Reset the robot to home position."""
-        self._data.qpos[self._panda_dof_ids] = self._home_position
-        self._data.ctrl[self._panda_ctrl_ids] = 0.0
-        mujoco.mj_forward(self._model, self._data)
+            """Reset the robot to home position."""
+            self._data.qpos[self._panda_dof_ids] = self._home_position
+            self._data.ctrl[self._panda_ctrl_ids] = 0.0
+            mujoco.mj_forward(self._model, self._data)
 
-        # Reset mocap body to home position
-        tcp_pos = self._data.sensor("2f85/pinch_pos").data
-        self._data.mocap_pos[0] = tcp_pos
+            # 2. 获取当前末端执行器(TCP)的位置和方向
+            # 注意：这里我们使用 sensor 读取实时数据
+            tcp_pos = self._data.sensor("2f85/pinch_pos").data
+            tcp_quat = self._data.sensor("2f85/pinch_quat").data  # 获取当前手部方向
+            # 3. 同时将 Mocap 的位置和方向同步为当前状态
+            self._data.mocap_pos[0] = tcp_pos
+            self._data.mocap_quat[0] = tcp_quat  # 设置给 Mocap 目标
 
     def apply_action(self, action):
         """Apply the action to the robot."""
@@ -238,9 +248,19 @@ class FrankaGymEnv(MujocoGymEnv):
         self._data.mocap_pos[0] = npos
 
         # Set gripper grasp
-        g = self._data.ctrl[self._gripper_ctrl_id] / MAX_GRIPPER_COMMAND
-        ng = np.clip(g + grasp_command, 0.0, 1.0)
-        self._data.ctrl[self._gripper_ctrl_id] = ng * MAX_GRIPPER_COMMAND
+        if self._is_vacuum_gripper:
+            # Vacuum gripper: binary control using adhesion actuator (0=off, 1=on)
+            # grasp_command > 0.3 means "turn on", otherwise "turn off"
+            # Adhesion actuator uses range [0, 1], where 1 = full adhesion (gain * ctrl)
+            if grasp_command > 0.3:
+                self._data.ctrl[self._gripper_ctrl_id] = 1.0  # Full adhesion
+            else:
+                self._data.ctrl[self._gripper_ctrl_id] = 0.0  # No adhesion
+        else:
+            # 2f85 gripper: continuous incremental control
+            g = self._data.ctrl[self._gripper_ctrl_id] / MAX_GRIPPER_COMMAND
+            ng = np.clip(g + grasp_command, 0.0, 1.0)
+            self._data.ctrl[self._gripper_ctrl_id] = ng * MAX_GRIPPER_COMMAND
 
         # Apply operational space control
         for _ in range(self._n_substeps):
@@ -278,5 +298,15 @@ class FrankaGymEnv(MujocoGymEnv):
         return rendered_frames
 
     def get_gripper_pose(self):
-        """Get the current pose of the gripper."""
-        return np.array([self._data.ctrl[self._gripper_ctrl_id]], dtype=np.float32)
+        """Get the current pose of the gripper.
+        
+        For 2f85 gripper: returns 0-255 range value
+        For vacuum gripper: returns 0 (off) or 255 (on) to maintain interface compatibility
+        """
+        if self._is_vacuum_gripper:
+            # Vacuum gripper: convert [0, 1] adhesion control to [0, 255] for compatibility
+            ctrl_value = self._data.ctrl[self._gripper_ctrl_id]
+            return np.array([255.0 if ctrl_value > 0.5 else 0.0], dtype=np.float32)
+        else:
+            # 2f85 gripper: already in 0-255 range
+            return np.array([self._data.ctrl[self._gripper_ctrl_id]], dtype=np.float32)

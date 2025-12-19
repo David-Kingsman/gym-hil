@@ -18,9 +18,10 @@ from gym_hil.envs.panda_masonry_insertion_env import PandaMasonryBlockInsertionE
 from gym_hil.envs.panda_arrange_boxes_gym_env import PandaArrangeBoxesGymEnv
 from gym_hil.envs.panda_pick_gym_env import PandaPickCubeGymEnv
 from gym_hil.envs.panda_pick_gym_ft_env import PandaPickCubeGymFtEnv
+from gym_hil.envs.panda_pick_plate_gym_env import PandaPickPlateGymEnv
 
 # Alias for compatibility
 MasonryBlockInsertionGymEnv = PandaMasonryBlockInsertionEnv
 RegularMasonryBlockInsertionEnv = PandaMasonryBlockInsertionEnv
 
-__all__ = ["PandaPickCubeGymEnv", "PandaPickCubeGymFtEnv", "PandaArrangeBoxesGymEnv", "XarmPickCubeGymEnv", "MasonryBlockInsertionGymEnv", "PandaMasonryBlockInsertionEnv", "RegularMasonryBlockInsertionEnv", "XarmMasonryBlockInsertionGymEnv"]
+__all__ = ["PandaPickCubeGymEnv", "PandaPickCubeGymFtEnv", "PandaPickPlateGymEnv", "PandaArrangeBoxesGymEnv", "XarmPickCubeGymEnv", "MasonryBlockInsertionGymEnv", "PandaMasonryBlockInsertionEnv", "RegularMasonryBlockInsertionEnv", "XarmMasonryBlockInsertionGymEnv"]

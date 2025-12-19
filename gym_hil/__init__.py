@@ -50,6 +50,12 @@ register(
     max_episode_steps=100,
 )
 
+register(
+    id="gym_hil/PandaPickPlateBase-v0",  # Plate pick with vacuum gripper base environment
+    entry_point="gym_hil.envs:PandaPickPlateGymEnv",
+    max_episode_steps=100,
+)
+
 # Register the viewer wrapper
 register(
     id="gym_hil/PandaPickCubeViewer-v0",
@@ -96,6 +102,19 @@ register(
         "use_viewer": True,
         "use_inputs_control": True,
         "use_gamepad": True,
+    },
+)
+
+register(
+    id="gym_hil/PandaPickPlateGamepad-v0",
+    entry_point="gym_hil.wrappers.factory:make_env",
+    max_episode_steps=100,
+    kwargs={
+        "env_id": "gym_hil/PandaPickPlateBase-v0",  # Use the plate pick base environment
+        "use_viewer": True,
+        "use_inputs_control": True,
+        "use_gamepad": True,
+        "use_gripper": True,  # Vacuum gripper control
     },
 )
 

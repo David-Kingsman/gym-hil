@@ -8,6 +8,7 @@ from gym_hil.envs.panda_masonry_insertion_env import PandaMasonryBlockInsertionE
 from gym_hil.envs.panda_arrange_boxes_gym_env import PandaArrangeBoxesGymEnv
 from gym_hil.envs.panda_pick_gym_env import PandaPickCubeGymEnv
 from gym_hil.envs.panda_pick_gym_ft_env import PandaPickCubeGymFtEnv
+from gym_hil.envs.panda_pick_plate_gym_env import PandaPickPlateGymEnv
 from gym_hil.wrappers.hil_wrappers import (
     DEFAULT_EE_STEP_SIZE,
     EEActionWrapper,
@@ -137,6 +138,8 @@ def make_env(
         env = PandaPickCubeGymEnv(**kwargs)
     elif env_id == "gym_hil/PandaPickCubeFtBase-v0":
         env = PandaPickCubeGymFtEnv(**kwargs)
+    elif env_id == "gym_hil/PandaPickPlateBase-v0":
+        env = PandaPickPlateGymEnv(**kwargs)
     elif env_id == "gym_hil/PandaArrangeBoxesBase-v0":
         env = PandaArrangeBoxesGymEnv(**kwargs)
     elif env_id == "gym_hil/MasonryBlockInsertionBase-v0":
