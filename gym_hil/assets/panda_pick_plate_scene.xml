@@ -1,7 +1,7 @@
 <mujoco model="panda_pick_plate_scene">
     <include file="panda_vacuum.xml"/>
 
-    <option timestep=".001" noslip_iterations="5" noslip_tolerance="0"/>
+    <option timestep=".001" noslip_iterations="50" noslip_tolerance="0" impratio="100" cone="elliptic"/>
 
     <statistic center="0.3 0 0.4" extent=".8"/>
 
@@ -30,12 +30,12 @@
       
       <geom name="floor" size="3 3 0.01" type="plane" material="grid" 
             contype="1" conaffinity="1"
-            solimp="0.99 0.99 0.01" solref="0.002 1" friction="2 2 2"/>
+            solimp="0.99 0.99 0.01" solref="0.002 1" friction="5 5 5"/>
 
       <body name="plate_body" pos="0.5 0 .005">
         <freejoint name="plate_joint"/>
         <geom name="plate" type="box" size="0.2 0.15 0.005" mass="1.0" material="window_glass"
-              contype="1" conaffinity="1"
+              contype="1" conaffinity="1" priority="1"
               solimp="0.99 0.99 0.01" solref="0.002 1" friction="10 10 10" condim="6"/>
       </body>
 
