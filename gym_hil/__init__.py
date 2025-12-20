@@ -56,6 +56,13 @@ register(
     max_episode_steps=100,
 )
 
+# KUKA Pick Plate Environments
+register(
+    id="gym_hil/KukaPickPlateBase-v0",  # KUKA iiwa14 plate pick with vacuum gripper base environment
+    entry_point="gym_hil.envs:KukaPickPlateGymEnv",
+    max_episode_steps=100,
+)
+
 # Register the viewer wrapper
 register(
     id="gym_hil/PandaPickCubeViewer-v0",
@@ -121,7 +128,7 @@ register(
 register(
     id="gym_hil/PandaPickPlateGamepad6DoF-v0",
     entry_point="gym_hil.wrappers.factory:make_env",
-    max_episode_steps=100,
+    max_episode_steps=300,  # Increased to allow control_time_s * fps (20s * 10fps = 200, with buffer)
     kwargs={
         "env_id": "gym_hil/PandaPickPlateBase-v0",  # Use the plate pick base environment
         "use_viewer": True,
@@ -129,16 +136,47 @@ register(
         "use_gamepad": True,
         "use_gamepad_6dof": True,  # Enable 6-DoF gamepad control (xyz + rx ry rz)
         "use_gripper": True,  # Vacuum gripper control
-        "roll_step_size": 0.01,  # Step size for roll rotation (radians)
-        "pitch_step_size": 0.01,  # Step size for pitch rotation (radians)
-        "yaw_step_size": 0.01,  # Step size for yaw rotation (radians)
+        "roll_step_size": 0.1,  # Step size for roll rotation (radians) - ~5.7 degrees for smoother control
+        "pitch_step_size": 0.1,  # Step size for pitch rotation (radians) - ~5.7 degrees for smoother control
+        "yaw_step_size": 0.1,  # Step size for yaw rotation (radians) - ~5.7 degrees for smoother control
+    },
+)
+
+# KUKA Pick Plate with Gamepad
+register(
+    id="gym_hil/KukaPickPlateGamepad-v0",
+    entry_point="gym_hil.wrappers.factory:make_env",
+    max_episode_steps=100,
+    kwargs={
+        "env_id": "gym_hil/KukaPickPlateBase-v0",  # Use the KUKA plate pick base environment
+        "use_viewer": True,
+        "use_inputs_control": True,
+        "use_gamepad": True,
+        "use_gripper": True,  # Vacuum gripper control
+    },
+)
+
+register(
+    id="gym_hil/KukaPickPlateGamepad6DoF-v0",
+    entry_point="gym_hil.wrappers.factory:make_env",
+    max_episode_steps=300,  # Increased to allow control_time_s * fps (20s * 10fps = 200, with buffer)
+    kwargs={
+        "env_id": "gym_hil/KukaPickPlateBase-v0",  # Use the KUKA plate pick base environment
+        "use_viewer": True,
+        "use_inputs_control": True,
+        "use_gamepad": True,
+        "use_gamepad_6dof": True,  # Enable 6-DoF gamepad control (xyz + rx ry rz)
+        "use_gripper": True,  # Vacuum gripper control
+        "roll_step_size": 0.1,  # Step size for roll rotation (radians) - ~5.7 degrees for smoother control
+        "pitch_step_size": 0.1,  # Step size for pitch rotation (radians) - ~5.7 degrees for smoother control
+        "yaw_step_size": 0.1,  # Step size for yaw rotation (radians) - ~5.7 degrees for smoother control
     },
 )
 
 register(
     id="gym_hil/PandaPickPlateMetaQuest-v0",
     entry_point="gym_hil.wrappers.factory:make_env",
-    max_episode_steps=200,
+    max_episode_steps=300,  # Increased to allow control_time_s * fps (20s * 10fps = 200, with buffer)
     kwargs={
         "env_id": "gym_hil/PandaPickPlateBase-v0",  # Use the plate pick base environment
         "use_viewer": True,
