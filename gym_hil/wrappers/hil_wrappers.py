@@ -51,10 +51,11 @@ class GripperPenaltyWrapper(gym.Wrapper):
 
 
 class EEActionWrapper(gym.ActionWrapper):
-    def __init__(self, env, ee_action_step_size, use_gripper=False):
+    def __init__(self, env, ee_action_step_size, use_gripper=False, use_6dof=False):
         super().__init__(env)
         self.ee_action_step_size = ee_action_step_size
         self.use_gripper = use_gripper
+        self.use_6dof = use_6dof
 
         self._ee_step_size = np.array(
             [
@@ -64,6 +65,10 @@ class EEActionWrapper(gym.ActionWrapper):
             ]
         )
         num_actions = 3
+
+        # Add rotation dimensions if 6-DoF mode
+        if self.use_6dof:
+            num_actions = 6  # xyz + rx ry rz
 
         # Initialize action space bounds for the non-gripper case
         action_space_bounds_min = -np.ones(num_actions)
@@ -86,18 +91,25 @@ class EEActionWrapper(gym.ActionWrapper):
         """
         Mujoco env is expecting a 7D action space
         [x, y, z, rx, ry, rz, gripper_open]
-        For the moment we only control the x, y, z, gripper
+        For 3-DoF mode: only control x, y, z, gripper (rotation is zero)
+        For 6-DoF mode: control x, y, z, rx, ry, rz, gripper
         """
 
-        # action between -1 and 1, scale to step_size
-        action_xyz = action[:3] * self._ee_step_size
-        # TODO: Extend to enable orientation control
-        actions_orn = np.zeros(3)
+        if self.use_6dof:
+            # 6-DoF mode: action is [x, y, z, rx, ry, rz, (gripper)]
+            # Scale position by step_size, rotation is already in radians
+            action_xyz = action[:3] * self._ee_step_size
+            actions_orn = action[3:6]  # rx, ry, rz already in correct units
+        else:
+            # 3-DoF mode: action is [x, y, z, (gripper)]
+            action_xyz = action[:3] * self._ee_step_size
+            actions_orn = np.zeros(3)  # No rotation control
 
         gripper_open_command = [0.0]
         if self.use_gripper:
             # NOTE: Normalize gripper action from [0, 2] -> [-1, 1]
-            gripper_open_command = [action[-1] - 1.0]
+            gripper_idx = 6 if self.use_6dof else 3
+            gripper_open_command = [action[gripper_idx] - 1.0]
 
         action = np.concatenate([action_xyz, actions_orn, gripper_open_command])
         return action
@@ -121,7 +133,13 @@ class InputsControlWrapper(gym.Wrapper):
         auto_reset=False,
         input_threshold=0.001,
         use_gamepad=True,
+        use_meta_quest=False,
         controller_config_path=None,
+        meta_quest_config=None,
+        use_gamepad_6dof=False,
+        roll_step_size=0.01,
+        pitch_step_size=0.01,
+        yaw_step_size=0.01,
     ):
         """
         Initialize the inputs controller wrapper.
@@ -140,25 +158,72 @@ class InputsControlWrapper(gym.Wrapper):
         super().__init__(env)
         from gym_hil.wrappers.intervention_utils import (
             GamepadController,
+            GamepadController6DoF,
             GamepadControllerHID,
             KeyboardController,
+            MetaQuestController,
         )
 
+        self.use_meta_quest = use_meta_quest
+        self.use_gamepad_6dof = use_gamepad_6dof
+
         # use HidApi for macos
-        if use_gamepad:
-            if sys.platform == "darwin":
-                self.controller = GamepadControllerHID(
-                    x_step_size=x_step_size,
-                    y_step_size=y_step_size,
-                    z_step_size=z_step_size,
-                )
+        if use_meta_quest:
+            # Meta Quest 6-DoF control
+            meta_config = meta_quest_config or {}
+            self.controller = MetaQuestController(
+                x_step_size=x_step_size,
+                y_step_size=y_step_size,
+                z_step_size=z_step_size,
+                translation_scale=meta_config.get("translation_scale", 1.0),
+                rotation_scale=meta_config.get("rotation_scale", 0.3),
+                deadzone=meta_config.get("deadzone", 0.001),
+                right_controller=meta_config.get("right_controller", True),
+            )
+        elif use_gamepad:
+            if self.use_gamepad_6dof:
+                # 6-DoF gamepad control (xyz + rx ry rz)
+                # use HidApi for macos
+                import platform
+                if platform.system() == "Darwin":
+                    # TODO: Implement GamepadControllerHID6DoF if needed
+                    print("Warning: 6-DoF gamepad control on macOS not yet implemented with HID. Falling back to pygame.")
+                    self.controller = GamepadController6DoF(
+                        x_step_size=x_step_size,
+                        y_step_size=y_step_size,
+                        z_step_size=z_step_size,
+                        roll_step_size=roll_step_size,
+                        pitch_step_size=pitch_step_size,
+                        yaw_step_size=yaw_step_size,
+                        config_path=controller_config_path,
+                    )
+                else:
+                    self.controller = GamepadController6DoF(
+                        x_step_size=x_step_size,
+                        y_step_size=y_step_size,
+                        z_step_size=z_step_size,
+                        roll_step_size=roll_step_size,
+                        pitch_step_size=pitch_step_size,
+                        yaw_step_size=yaw_step_size,
+                        config_path=controller_config_path,
+                    )
             else:
-                self.controller = GamepadController(
-                    x_step_size=x_step_size,
-                    y_step_size=y_step_size,
-                    z_step_size=z_step_size,
-                    config_path=controller_config_path,
-                )
+                # 3-DoF gamepad control (xyz only)
+                # use HidApi for macos
+                import platform
+                if platform.system() == "Darwin":
+                    self.controller = GamepadControllerHID(
+                        x_step_size=x_step_size,
+                        y_step_size=y_step_size,
+                        z_step_size=z_step_size,
+                    )
+                else:
+                    self.controller = GamepadController(
+                        x_step_size=x_step_size,
+                        y_step_size=y_step_size,
+                        z_step_size=z_step_size,
+                        config_path=controller_config_path,
+                    )
         else:
             self.controller = KeyboardController(
                 x_step_size=x_step_size,
@@ -170,10 +235,14 @@ class InputsControlWrapper(gym.Wrapper):
         self.use_gripper = use_gripper
         self.input_threshold = input_threshold
         self.controller.start()
+        
+        # For Meta Quest absolute pose control
+        self._meta_quest_absolute_pose = None
+        self._meta_quest_gripper_cmd = 1.0
 
     def get_gamepad_action(self):
         """
-        Get the current action from the gamepad if any input is active.
+        Get the current action from the gamepad/meta quest if any input is active.
 
         Returns:
             Tuple of (is_active, action, terminate_episode, success)
@@ -181,25 +250,126 @@ class InputsControlWrapper(gym.Wrapper):
         # Update the controller to get fresh inputs
         self.controller.update()
 
-        # Get movement deltas from the controller
-        delta_x, delta_y, delta_z = self.controller.get_deltas()
-
         intervention_is_active = self.controller.should_intervene()
 
-        # Create action from gamepad input
-        gamepad_action = np.array([delta_x, delta_y, delta_z], dtype=np.float32)
-
-        if self.use_gripper:
-            gripper_command = self.controller.gripper_command()
-            if gripper_command == "open":
-                gamepad_action = np.concatenate([gamepad_action, [2.0]])
-            elif gripper_command == "close":
-                gamepad_action = np.concatenate([gamepad_action, [0.0]])
+        # Get action based on controller type
+        if self.use_meta_quest and hasattr(self.controller, 'get_target_pose'):
+            # Meta Quest 6-DoF control using absolute pose (similar to real robot)
+            target_pose = self.controller.get_target_pose()
+            if target_pose is not None:
+                # Use absolute pose control for Meta Quest
+                # Get gripper command
+                gripper_cmd = 1.0  # Default: stay
+                if self.use_gripper:
+                    gripper_command = self.controller.gripper_command()
+                    if gripper_command == "open":
+                        gripper_cmd = 2.0
+                    elif gripper_command == "close":
+                        gripper_cmd = 0.0
+                
+                # Store target_pose for later use in step() where absolute pose will be applied
+                # The actual action passed here is just a placeholder - real control happens in step()
+                self._meta_quest_absolute_pose = target_pose
+                self._meta_quest_gripper_cmd = gripper_cmd
+                # Return a placeholder action (will be converted to delta in step())
+                controller_action = np.zeros(7, dtype=np.float32)
+                controller_action[6] = gripper_cmd  # Set gripper
+                # Debug: print when using absolute pose control
+                if not hasattr(self, '_last_abs_pose_print_time'):
+                    self._last_abs_pose_print_time = 0.0
+                import time
+                current_time = time.time()
+                if current_time - self._last_abs_pose_print_time > 1.0:  # Print every 1s
+                    # Also print current robot pose for comparison
+                    current_robot_pos = self.env.unwrapped._data.mocap_pos[0].copy()
+                    print(f"[MetaQuest绝对位姿控制] target_pose position: ({target_pose[0,3]:.4f}, {target_pose[1,3]:.4f}, {target_pose[2,3]:.4f})")
+                    print(f"[MetaQuest绝对位姿控制] current_robot_pos: ({current_robot_pos[0]:.4f}, {current_robot_pos[1]:.4f}, {current_robot_pos[2]:.4f})")
+                    self._last_abs_pose_print_time = current_time
             else:
-                gamepad_action = np.concatenate([gamepad_action, [1.0]])
+                # Debug: print when falling back to delta control
+                if not hasattr(self, '_last_fallback_print_time'):
+                    self._last_fallback_print_time = 0.0
+                import time
+                current_time = time.time()
+                if current_time - self._last_fallback_print_time > 1.0:  # Print every 1s
+                    print(f"[MetaQuest警告] get_target_pose()返回None，回退到delta控制")
+                    self._last_fallback_print_time = current_time
+                # Fallback to delta control if target_pose is not available
+                deltas = self.controller.get_6dof_deltas()
+                controller_action = np.array([
+                    deltas["delta_x"],
+                    deltas["delta_y"],
+                    deltas["delta_z"],
+                    deltas["delta_roll"],
+                    deltas["delta_pitch"],
+                    deltas["delta_yaw"],
+                ], dtype=np.float32)
+                
+                if self.use_gripper:
+                    gripper_command = self.controller.gripper_command()
+                    if gripper_command == "open":
+                        controller_action = np.concatenate([controller_action, [2.0]])
+                    elif gripper_command == "close":
+                        controller_action = np.concatenate([controller_action, [0.0]])
+                    else:
+                        controller_action = np.concatenate([controller_action, [1.0]])
+                self._meta_quest_absolute_pose = None
+        elif self.use_meta_quest and hasattr(self.controller, 'get_6dof_deltas'):
+            # Meta Quest 6-DoF control using deltas (fallback)
+            deltas = self.controller.get_6dof_deltas()
+            controller_action = np.array([
+                deltas["delta_x"],
+                deltas["delta_y"],
+                deltas["delta_z"],
+                deltas["delta_roll"],
+                deltas["delta_pitch"],
+                deltas["delta_yaw"],
+            ], dtype=np.float32)
+            
+            if self.use_gripper:
+                gripper_command = self.controller.gripper_command()
+                if gripper_command == "open":
+                    controller_action = np.concatenate([controller_action, [2.0]])
+                elif gripper_command == "close":
+                    controller_action = np.concatenate([controller_action, [0.0]])
+                else:
+                    controller_action = np.concatenate([controller_action, [1.0]])
+            self._meta_quest_absolute_pose = None
+        elif self.use_gamepad_6dof and hasattr(self.controller, "get_6dof_deltas"):
+            # Gamepad 6-DoF control (xyz + rx ry rz)
+            deltas = self.controller.get_6dof_deltas()
+            controller_action = np.array([
+                deltas["delta_x"],
+                deltas["delta_y"],
+                deltas["delta_z"],
+                deltas["delta_roll"],
+                deltas["delta_pitch"],
+                deltas["delta_yaw"],
+            ], dtype=np.float32)
+
+            if self.use_gripper:
+                gripper_command = self.controller.gripper_command()
+                if gripper_command == "open":
+                    controller_action = np.concatenate([controller_action, [2.0]])
+                elif gripper_command == "close":
+                    controller_action = np.concatenate([controller_action, [0.0]])
+                else:
+                    controller_action = np.concatenate([controller_action, [1.0]])
+        else:
+            # Gamepad/Keyboard 3-DoF control
+            delta_x, delta_y, delta_z = self.controller.get_deltas()
+            controller_action = np.array([delta_x, delta_y, delta_z], dtype=np.float32)
+
+            if self.use_gripper:
+                gripper_command = self.controller.gripper_command()
+                if gripper_command == "open":
+                    controller_action = np.concatenate([controller_action, [2.0]])
+                elif gripper_command == "close":
+                    controller_action = np.concatenate([controller_action, [0.0]])
+                else:
+                    controller_action = np.concatenate([controller_action, [1.0]])
 
         # Check episode ending buttons
-        # We'll rely on controller.get_episode_end_status() which returns "success", "failure", or None
         episode_end_status = self.controller.get_episode_end_status()
         terminate_episode = episode_end_status is not None
         success = episode_end_status == "success"
@@ -207,7 +377,7 @@ class InputsControlWrapper(gym.Wrapper):
 
         return (
             intervention_is_active,
-            gamepad_action,
+            controller_action,
             terminate_episode,
             success,
             rerecord_episode,
@@ -239,8 +409,53 @@ class InputsControlWrapper(gym.Wrapper):
         if is_intervention:
             action = gamepad_action
 
-        # Step the environment
-        obs, reward, terminated, truncated, info = self.env.step(action)
+        # For Meta Quest absolute pose control, apply absolute pose directly
+        if (is_intervention and self.use_meta_quest and 
+            hasattr(self, '_meta_quest_absolute_pose') and self._meta_quest_absolute_pose is not None):
+            # Apply absolute pose directly (similar to real robot control)
+            # Get current pose before applying new pose (for delta calculation for data collection)
+            from scipy.spatial.transform import Rotation
+            current_pos = self.env.unwrapped._data.mocap_pos[0].copy()
+            current_quat = self.env.unwrapped._data.mocap_quat[0].copy()  # [w, x, y, z]
+            current_rot = Rotation.from_quat([current_quat[1], current_quat[2], current_quat[3], current_quat[0]])
+            
+            # Calculate delta action for data collection (compatible with QCFQL)
+            # This ensures saved actions are in delta format, even though we use absolute pose control
+            target_pos = self._meta_quest_absolute_pose[:3, 3]
+            target_rot_matrix = self._meta_quest_absolute_pose[:3, :3]
+            target_rot = Rotation.from_matrix(target_rot_matrix)
+            
+            # Calculate position delta
+            delta_pos = target_pos - current_pos
+            
+            # Calculate rotation delta (Euler angles)
+            delta_rot = target_rot * current_rot.inv()
+            delta_euler = delta_rot.as_euler('xyz', degrees=False)
+            
+            # Create delta action for data collection (same format as gamepad/delta control)
+            delta_action = np.concatenate([delta_pos, delta_euler, [self._meta_quest_gripper_cmd]])
+            
+            # Apply absolute pose directly (this only sets mocap, does not step physics)
+            self.env.unwrapped.apply_absolute_pose(self._meta_quest_absolute_pose, self._meta_quest_gripper_cmd)
+            
+            # Now step the environment with delta_action to advance physics and get obs/reward/info
+            # Pass skip_mocap_update=True to apply_action so it doesn't override the absolute pose we just set
+            # The delta_action is used for data collection (saved to info), but mocap stays at absolute pose
+            original_apply_action = self.env.unwrapped.apply_action
+            self.env.unwrapped.apply_action = lambda action: original_apply_action(action, skip_mocap_update=True)
+            try:
+                obs, reward, terminated, truncated, info = self.env.step(delta_action)
+            finally:
+                # Restore original apply_action
+                self.env.unwrapped.apply_action = original_apply_action
+            
+            # Override the action in info with delta_action for data collection
+            # This ensures data collection saves delta actions (compatible with QCFQL), not absolute poses
+            info["teleop_action"] = delta_action
+        else:
+            # Normal step (gamepad or Meta Quest delta fallback)
+            # Step the environment
+            obs, reward, terminated, truncated, info = self.env.step(action)
 
         # Add episode ending if requested via gamepad
         terminated = terminated or truncated or terminate_episode
@@ -270,7 +485,42 @@ class InputsControlWrapper(gym.Wrapper):
     def reset(self, **kwargs):
         """Reset the environment."""
         self.controller.reset()
-        return self.env.reset(**kwargs)
+        obs, info = self.env.reset(**kwargs)
+        
+        # Initialize last pose for Meta Quest absolute pose control
+        if self.use_meta_quest:
+            # Get initial robot pose from environment and set it as robot_init_pose
+            if hasattr(self.env.unwrapped, '_data'):
+                # Get current mocap pose (initial end-effector pose)
+                init_pos = self.env.unwrapped._data.mocap_pos[0].copy()  # [x, y, z] in meters
+                init_quat = self.env.unwrapped._data.mocap_quat[0].copy()  # [w, x, y, z]
+                
+                # Convert to 4x4 transformation matrix for Meta Quest
+                # Note: Meta_quest2 expects robot_init_ee in mm (for real robot compatibility)
+                # But we're working in m, so we convert: m * 1000 = mm
+                from scipy.spatial.transform import Rotation
+                init_rot = Rotation.from_quat([init_quat[1], init_quat[2], init_quat[3], init_quat[0]])  # [x, y, z, w]
+                init_pose_mat = np.eye(4)
+                init_pose_mat[:3, 3] = init_pos * 1000.0  # Convert m to mm for Meta_quest2
+                init_pose_mat[:3, :3] = init_rot.as_matrix()
+                
+                # Set robot initial pose in Meta Quest controller
+                # This is important for absolute pose calculation
+                # Meta_quest2 will convert it back to m in get_target_pose()
+                self.controller.set_robot_init_pose(init_pose_mat)
+                
+                # Debug: print initial pose for verification
+                if not hasattr(self, '_init_pose_printed'):
+                    print(f"[MetaQuest Reset] Robot init pose (m): pos=({init_pos[0]:.4f}, {init_pos[1]:.4f}, {init_pos[2]:.4f})")
+                    print(f"[MetaQuest Reset] Robot init pose (mm for Meta_quest2): pos=({init_pose_mat[0,3]:.2f}, {init_pose_mat[1,3]:.2f}, {init_pose_mat[2,3]:.2f})")
+                    self._init_pose_printed = True
+                
+                # Initialize last pose for delta calculation (for data collection)
+                self.env.unwrapped._last_mocap_pos = init_pos.copy()
+                self.env.unwrapped._last_mocap_quat = init_quat.copy()
+            self._meta_quest_absolute_pose = None
+        
+        return obs, info
 
     def close(self):
         """Clean up resources when environment closes."""

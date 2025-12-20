@@ -9,6 +9,7 @@ from gym_hil.envs.panda_arrange_boxes_gym_env import PandaArrangeBoxesGymEnv
 from gym_hil.envs.panda_pick_gym_env import PandaPickCubeGymEnv
 from gym_hil.envs.panda_pick_gym_ft_env import PandaPickCubeGymFtEnv
 from gym_hil.envs.panda_pick_plate_gym_env import PandaPickPlateGymEnv
+from gym_hil.envs.kuka_pick_plate_gym_env import KukaPickPlateGymEnv
 from gym_hil.wrappers.hil_wrappers import (
     DEFAULT_EE_STEP_SIZE,
     EEActionWrapper,
@@ -30,6 +31,7 @@ def wrap_env(
     ee_step_size: EEActionStepSize | None = None,
     use_viewer: bool = False,
     use_gamepad: bool = False,
+    use_gamepad_6dof: bool = False,
     use_meta_quest: bool = False,
     use_gripper: bool = True,
     use_inputs_control: bool = False,
@@ -39,6 +41,9 @@ def wrap_env(
     reset_delay_seconds: float = 1.0,
     controller_config_path: str = None,
     meta_quest_config: dict = None,
+    roll_step_size: float = 0.01,
+    pitch_step_size: float = 0.01,
+    yaw_step_size: float = 0.01,
 ) -> gym.Env:
     """Apply wrappers to an environment based on configuration.
 
@@ -47,6 +52,7 @@ def wrap_env(
         ee_step_size: Step size for movement in meters
         use_viewer: Whether to add a passive viewer
         use_gamepad: Whether to use gamepad instead of keyboard controls
+        use_gamepad_6dof: Whether to use 6-DoF gamepad control (xyz + rx ry rz)
         use_meta_quest: Whether to use Meta Quest VR controller for 6-DoF control
         use_gripper: Whether to enable gripper control
         use_inputs_control: Whether to use inputs control
@@ -56,6 +62,9 @@ def wrap_env(
         reset_delay_seconds: The number of seconds to delay during reset
         controller_config_path: Path to the controller configuration JSON file
         meta_quest_config: Configuration for Meta Quest (translation_scale, rotation_scale, etc.)
+        roll_step_size: Step size for roll rotation (radians) in 6-DoF mode
+        pitch_step_size: Step size for pitch rotation (radians) in 6-DoF mode
+        yaw_step_size: Step size for yaw rotation (radians) in 6-DoF mode
 
     Returns:
         The wrapped environment
@@ -68,12 +77,17 @@ def wrap_env(
     if not ee_step_size:
         ee_step_size = DEFAULT_EE_STEP_SIZE      # Original gamepad steps
     
-    # EEActionWrapper only supports 3-DoF (xyz) + optional gripper (original gamepad mode)
-    env = EEActionWrapper(env, ee_action_step_size=ee_step_size, use_gripper=use_gripper)
+    # EEActionWrapper supports 3-DoF (xyz) or 6-DoF (xyz + rx ry rz) + optional gripper
+    env = EEActionWrapper(
+        env, 
+        ee_action_step_size=ee_step_size, 
+        use_gripper=use_gripper,
+        use_6dof=use_meta_quest or use_gamepad_6dof,  # Enable 6-DoF for Meta Quest or 6-DoF gamepad
+    )
 
     if use_inputs_control:
         # Apply control wrappers last
-        # InputsControlWrapper only supports gamepad/keyboard (3-DoF xyz + optional gripper)
+        # InputsControlWrapper supports gamepad/keyboard (3-DoF), 6-DoF gamepad, or Meta Quest (6-DoF) + optional gripper
         env = InputsControlWrapper(
             env,
             x_step_size=1.0,
@@ -83,7 +97,13 @@ def wrap_env(
             auto_reset=auto_reset,
             input_threshold=0.001,
             use_gamepad=use_gamepad,
+            use_meta_quest=use_meta_quest,
             controller_config_path=controller_config_path,
+            meta_quest_config=meta_quest_config,
+            use_gamepad_6dof=use_gamepad_6dof,
+            roll_step_size=roll_step_size,
+            pitch_step_size=pitch_step_size,
+            yaw_step_size=yaw_step_size,
         )
 
     # Apply wrappers in the correct order
@@ -101,6 +121,7 @@ def make_env(
     ee_step_size: EEActionStepSize | None = None,
     use_viewer: bool = False,
     use_gamepad: bool = False,
+    use_gamepad_6dof: bool = False,
     use_meta_quest: bool = False,
     use_gripper: bool = True,
     use_inputs_control: bool = False,
@@ -110,6 +131,9 @@ def make_env(
     reset_delay_seconds: float = 1.0,
     controller_config_path: str | None = None,
     meta_quest_config: dict | None = None,
+    roll_step_size: float = 0.01,
+    pitch_step_size: float = 0.01,
+    yaw_step_size: float = 0.01,
     **kwargs,
 ) -> gym.Env:
     """Create and wrap an environment in a single function.
@@ -119,6 +143,7 @@ def make_env(
         ee_step_size: Step size for movement in meters
         use_viewer: Whether to add a passive viewer
         use_gamepad: Whether to use gamepad instead of keyboard controls
+        use_gamepad_6dof: Whether to use 6-DoF gamepad control (xyz + rx ry rz)
         use_meta_quest: Whether to use Meta Quest VR controller for 6-DoF control
         use_gripper: Whether to enable gripper control
         use_inputs_control: Whether to use inputs control
@@ -128,6 +153,9 @@ def make_env(
         reset_delay_seconds: The number of seconds to delay during reset
         controller_config_path: Path to the controller configuration JSON file
         meta_quest_config: Configuration for Meta Quest (translation_scale, rotation_scale, etc.)
+        roll_step_size: Step size for roll rotation (radians) in 6-DoF mode
+        pitch_step_size: Step size for pitch rotation (radians) in 6-DoF mode
+        yaw_step_size: Step size for yaw rotation (radians) in 6-DoF mode
         **kwargs: Additional arguments to pass to the base environment
 
     Returns:
@@ -144,6 +172,8 @@ def make_env(
         env = PandaArrangeBoxesGymEnv(**kwargs)
     elif env_id == "gym_hil/MasonryBlockInsertionBase-v0":
         env = PandaMasonryBlockInsertionEnv(**kwargs)
+    elif env_id == "gym_hil/KukaPickPlateBase-v0":
+        env = KukaPickPlateGymEnv(**kwargs)
     else:
         raise ValueError(f"Environment ID {env_id} not supported")
 
@@ -152,6 +182,7 @@ def make_env(
         ee_step_size=ee_step_size,
         use_viewer=use_viewer,
         use_gamepad=use_gamepad,
+        use_gamepad_6dof=use_gamepad_6dof,
         use_meta_quest=use_meta_quest,
         use_gripper=use_gripper,
         use_inputs_control=use_inputs_control,
@@ -161,4 +192,7 @@ def make_env(
         reset_delay_seconds=reset_delay_seconds,
         controller_config_path=controller_config_path,
         meta_quest_config=meta_quest_config,
+        roll_step_size=roll_step_size,
+        pitch_step_size=pitch_step_size,
+        yaw_step_size=yaw_step_size,
     )

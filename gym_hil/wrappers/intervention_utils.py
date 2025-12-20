@@ -389,6 +389,201 @@ class GamepadController(InputController):
             return 0.0, 0.0, 0.0
 
 
+class GamepadController6DoF(InputController):
+    """Generate 6-DoF motion deltas (xyz + rx ry rz) from gamepad input."""
+
+    def __init__(
+        self,
+        x_step_size=0.01,
+        y_step_size=0.01,
+        z_step_size=0.01,
+        roll_step_size=0.01,
+        pitch_step_size=0.01,
+        yaw_step_size=0.01,
+        deadzone=0.1,
+        config_path=None,
+    ):
+        super().__init__(x_step_size, y_step_size, z_step_size)
+        self.roll_step_size = roll_step_size
+        self.pitch_step_size = pitch_step_size
+        self.yaw_step_size = yaw_step_size
+        self.deadzone = deadzone
+        self.joystick = None
+        self.intervention_flag = False
+        self.config_path = config_path
+        self.controller_config = None
+
+    def start(self):
+        """Initialize pygame and the gamepad."""
+        import pygame
+
+        pygame.init()
+        pygame.joystick.init()
+
+        if pygame.joystick.get_count() == 0:
+            print("No gamepad detected. Please connect a gamepad and try again.")
+            self.running = False
+            return
+
+        self.joystick = pygame.joystick.Joystick(0)
+        self.joystick.init()
+        joystick_name = self.joystick.get_name()
+        print(f"Initialized gamepad (6-DoF): {joystick_name}")
+
+        # Load controller configuration based on joystick name
+        self.controller_config = load_controller_config(joystick_name, self.config_path)
+
+        # Get button mappings from config
+        buttons = self.controller_config.get("buttons", {})
+
+        print("Gamepad controls (6-DoF):")
+        print(f"  {buttons.get('rb', 'RB')} button: Intervention")
+        print("  Left analog stick: Move in X-Y plane (translation)")
+        print("  Right analog stick (vertical): Move in Z axis (translation)")
+        print("  Right analog stick (horizontal): Rotate around Y axis (yaw)")
+        print("  D-pad Up/Down: Rotate around X axis (pitch)")
+        print("  D-pad Left/Right: Rotate around Z axis (roll)")
+        print(f"  {buttons.get('lt', 'LT')} button: Close gripper")
+        print(f"  {buttons.get('rt', 'RT')} button: Open gripper")
+        print(f"  {buttons.get('b', 'B')}/Circle button: Exit")
+        print(f"  {buttons.get('y', 'Y')}/Triangle button: End episode with SUCCESS")
+        print(f"  {buttons.get('a', 'A')}/Cross button: End episode with FAILURE")
+        print(f"  {buttons.get('x', 'X')}/Square button: Rerecord episode")
+
+    def stop(self):
+        """Clean up pygame resources."""
+        import pygame
+
+        if pygame.joystick.get_init():
+            if self.joystick:
+                self.joystick.quit()
+            pygame.joystick.quit()
+        pygame.quit()
+
+    def update(self):
+        """Process pygame events to get fresh gamepad readings."""
+        import pygame
+
+        # Get button mappings from config
+        buttons = self.controller_config.get("buttons", {})
+        y_button = buttons.get("y", 3)  # Default to 3 if not found
+        a_button = buttons.get("a", 0)  # Default to 0 if not found (Logitech F310)
+        x_button = buttons.get("x", 2)  # Default to 2 if not found (Logitech F310)
+        lt_button = buttons.get("lt", 6)  # Default to 6 if not found
+        rt_button = buttons.get("rt", 7)  # Default to 7 if not found
+        rb_button = buttons.get("rb", 5)  # Default to 5 if not found
+
+        for event in pygame.event.get():
+            if event.type == pygame.JOYBUTTONDOWN:
+                if event.button == y_button:
+                    self.episode_end_status = "success"
+                elif event.button == a_button:
+                    self.episode_end_status = "failure"
+                elif event.button == x_button:
+                    self.episode_end_status = "rerecord_episode"
+                elif event.button == lt_button:
+                    self.close_gripper_command = True
+                elif event.button == rt_button:
+                    self.open_gripper_command = True
+
+            # Reset episode status on button release
+            elif event.type == pygame.JOYBUTTONUP:
+                if event.button in [x_button, a_button, y_button]:
+                    self.episode_end_status = None
+                elif event.button == lt_button:
+                    self.close_gripper_command = False
+                elif event.button == rt_button:
+                    self.open_gripper_command = False
+
+            # Check for RB button for intervention flag
+            if self.joystick.get_button(rb_button):
+                self.intervention_flag = True
+            else:
+                self.intervention_flag = False
+
+    def get_deltas(self):
+        """Get the current 3-DoF movement deltas (for backward compatibility)."""
+        delta_x, delta_y, delta_z, _, _, _ = self._get_6dof_deltas()
+        return delta_x, delta_y, delta_z
+
+    def get_6dof_deltas(self):
+        """Get all 6-DoF deltas (position + rotation)."""
+        delta_x, delta_y, delta_z, delta_roll, delta_pitch, delta_yaw = self._get_6dof_deltas()
+        return {
+            "delta_x": delta_x,
+            "delta_y": delta_y,
+            "delta_z": delta_z,
+            "delta_roll": delta_roll,
+            "delta_pitch": delta_pitch,
+            "delta_yaw": delta_yaw,
+        }
+
+    def _get_6dof_deltas(self):
+        """Internal method to get all 6-DoF deltas from gamepad state."""
+        import pygame
+
+        try:
+            # Get axis mappings from config
+            axes = self.controller_config.get("axes", {})
+            axis_inversion = self.controller_config.get("axis_inversion", {})
+
+            # Get axis indices from config (with defaults if not found)
+            left_x_axis = axes.get("left_x", 0)
+            left_y_axis = axes.get("left_y", 1)
+            right_x_axis = axes.get("right_x", 2)
+            right_y_axis = axes.get("right_y", 3)
+
+            # Get axis inversion settings (with defaults if not found)
+            invert_left_x = axis_inversion.get("left_x", False)
+            invert_left_y = axis_inversion.get("left_y", True)
+            invert_right_x = axis_inversion.get("right_x", False)
+            invert_right_y = axis_inversion.get("right_y", True)
+
+            # Read joystick axes for translation
+            x_input = self.joystick.get_axis(left_x_axis)  # Left/Right (Y translation)
+            y_input = self.joystick.get_axis(left_y_axis)  # Up/Down (X translation)
+            z_input = self.joystick.get_axis(right_y_axis)  # Up/Down (Z translation)
+            yaw_input = self.joystick.get_axis(right_x_axis)  # Left/Right (Yaw rotation)
+
+            # Read D-pad for pitch and roll
+            # Get hat (D-pad) state - returns tuple (x, y) where values are -1, 0, or 1
+            hat = self.joystick.get_hat(0) if self.joystick.get_numhats() > 0 else (0, 0)
+            pitch_input = -hat[1]  # Up/Down on D-pad (negative because up is typically -1)
+            roll_input = hat[0]  # Left/Right on D-pad
+
+            # Apply deadzone to joystick inputs (but not to D-pad which is digital)
+            x_input = 0 if abs(x_input) < self.deadzone else x_input
+            y_input = 0 if abs(y_input) < self.deadzone else y_input
+            z_input = 0 if abs(z_input) < self.deadzone else z_input
+            yaw_input = 0 if abs(yaw_input) < self.deadzone else yaw_input
+
+            # Apply inversion if configured
+            if invert_left_x:
+                x_input = -x_input
+            if invert_left_y:
+                y_input = -y_input
+            if invert_right_x:
+                yaw_input = -yaw_input
+            if invert_right_y:
+                z_input = -z_input
+
+            # Calculate translation deltas
+            delta_x = y_input * self.y_step_size  # Forward/backward
+            delta_y = x_input * self.x_step_size  # Left/right
+            delta_z = z_input * self.z_step_size  # Up/down
+
+            # Calculate rotation deltas
+            delta_roll = roll_input * self.roll_step_size  # Roll (D-pad Left/Right)
+            delta_pitch = pitch_input * self.pitch_step_size  # Pitch (D-pad Up/Down)
+            delta_yaw = yaw_input * self.yaw_step_size  # Yaw (Right stick Left/Right)
+
+            return delta_x, delta_y, delta_z, delta_roll, delta_pitch, delta_yaw
+
+        except pygame.error:
+            print("Error reading gamepad. Is it still connected?")
+            return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+
+
 class GamepadControllerHID(InputController):
     """Generate motion deltas from gamepad input using HIDAPI."""
 
@@ -694,25 +889,33 @@ class MetaQuestController(InputController):
             self.set_robot_init_pose(default_pose)
         
         try:
-            # Get action from MetaQuestTeleop
-            action = self._teleop.get_action()
-            
-            # Extract deltas
-            self.delta_x = action.get("delta_x", 0.0)
-            self.delta_y = action.get("delta_y", 0.0)
-            self.delta_z = action.get("delta_z", 0.0)
-            self.delta_roll = action.get("delta_roll", 0.0)
-            self.delta_pitch = action.get("delta_pitch", 0.0)
-            self.delta_yaw = action.get("delta_yaw", 0.0)
-            
-            # Get gripper state (0=close, 1=stay, 2=open)
-            gripper_action = action.get("gripper", 1)
-            self.close_gripper_command = (gripper_action == 0)
-            self.open_gripper_command = (gripper_action == 2)
+            # For absolute pose control, we don't need to compute deltas
+            # Only update gripper and events, not deltas
+            # Deltas are only needed for fallback delta control mode
             
             # Get teleop events for intervention and episode control
             events = self._teleop.get_teleop_events()
             self._intervention_active = events.get("is_intervention", False)
+            
+            # Get gripper state from controller state (not from get_action)
+            try:
+                controller_state = self._teleop._meta_quest_device.get_controller_state()
+                grasp = controller_state.get("grasp", False)
+                gripper_action = 0 if grasp else 2  # 0=close, 2=open
+                self.close_gripper_command = (gripper_action == 0)
+                self.open_gripper_command = (gripper_action == 2)
+            except Exception:
+                # Fallback: set default gripper state
+                self.close_gripper_command = False
+                self.open_gripper_command = False
+            
+            # Reset deltas to zero (we're using absolute pose control)
+            self.delta_x = 0.0
+            self.delta_y = 0.0
+            self.delta_z = 0.0
+            self.delta_roll = 0.0
+            self.delta_pitch = 0.0
+            self.delta_yaw = 0.0
             
             # Handle episode end events from keyboard
             if events.get("success", False):
@@ -724,8 +927,6 @@ class MetaQuestController(InputController):
             if events.get("rerecord_episode", False):
                 self.key_states["rerecord"] = True
                 self.episode_end_status = "rerecord_episode"
-            
-            # Debug print removed - now using ACTION print in get_gamepad_action()
             
         except Exception as e:
             print(f"\nError reading MetaQuestTeleop state: {e}")
@@ -744,6 +945,16 @@ class MetaQuestController(InputController):
             "delta_pitch": self.delta_pitch,
             "delta_yaw": self.delta_yaw,
         }
+    
+    def get_target_pose(self):
+        """Get the absolute target pose (4x4 matrix) for direct pose control.
+        
+        Returns:
+            4x4 transformation matrix or None if not available
+        """
+        if self._teleop is None:
+            return None
+        return self._teleop.get_target_pose()
 
     def should_intervene(self):
         """Return True when intervention is active (always True for Meta Quest)."""

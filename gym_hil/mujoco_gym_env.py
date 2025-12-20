@@ -237,15 +237,41 @@ class FrankaGymEnv(MujocoGymEnv):
             self._data.mocap_pos[0] = tcp_pos
             self._data.mocap_quat[0] = tcp_quat  # 设置给 Mocap 目标
 
-    def apply_action(self, action):
-        """Apply the action to the robot."""
+    def apply_action(self, action, skip_mocap_update=False, pos_gains=None, ori_gains=None, damping_ratio=None):
+        """Apply the action to the robot.
+        
+        Args:
+            action: Action array [x, y, z, rx, ry, rz, grasp_command]
+            skip_mocap_update: If True, skip updating mocap position/orientation (already set to absolute pose)
+            pos_gains: Optional tuple/array of position gains (default: (200, 200, 200))
+            ori_gains: Optional tuple/array of orientation gains (default: (200, 200, 200))
+            damping_ratio: Optional damping ratio (default: 1.0)
+        """
         x, y, z, rx, ry, rz, grasp_command = action
 
-        # Set the mocap position
-        pos = self._data.mocap_pos[0].copy()
-        dpos = np.asarray([x, y, z])
-        npos = np.clip(pos + dpos, *self._cartesian_bounds)
-        self._data.mocap_pos[0] = npos
+        # Set the mocap position (incremental control)
+        # Skip if mocap was already set to absolute pose
+        if not skip_mocap_update:
+            pos = self._data.mocap_pos[0].copy()
+            dpos = np.asarray([x, y, z])
+            npos = np.clip(pos + dpos, *self._cartesian_bounds)
+            self._data.mocap_pos[0] = npos
+
+        # Set the mocap orientation (quaternion) by applying rotation delta
+        # Skip if mocap was already set to absolute pose
+        if not skip_mocap_update:
+            # Convert Euler angle delta [rx, ry, rz] to quaternion and apply to current quat
+            from scipy.spatial.transform import Rotation
+            current_quat = self._data.mocap_quat[0].copy()  # [w, x, y, z]
+            # Convert current quat to rotation matrix
+            current_rot = Rotation.from_quat([current_quat[1], current_quat[2], current_quat[3], current_quat[0]])  # [x, y, z, w]
+            # Apply rotation delta (rx, ry, rz are Euler angles in radians)
+            delta_rot = Rotation.from_euler('xyz', [rx, ry, rz], degrees=False)
+            # Combine rotations: new_rot = delta_rot * current_rot
+            new_rot = delta_rot * current_rot
+            # Convert back to quaternion [w, x, y, z]
+            new_quat = new_rot.as_quat()  # Returns [x, y, z, w]
+            self._data.mocap_quat[0] = np.array([new_quat[3], new_quat[0], new_quat[1], new_quat[2]])  # [w, x, y, z]
 
         # Set gripper grasp
         if self._is_vacuum_gripper:
@@ -263,6 +289,14 @@ class FrankaGymEnv(MujocoGymEnv):
             self._data.ctrl[self._gripper_ctrl_id] = ng * MAX_GRIPPER_COMMAND
 
         # Apply operational space control
+        # Use default values if None (opspace has defaults, but we need to handle None explicitly)
+        if pos_gains is None:
+            pos_gains = (200.0, 200.0, 200.0)
+        if ori_gains is None:
+            ori_gains = (200.0, 200.0, 200.0)
+        if damping_ratio is None:
+            damping_ratio = 1.0
+        
         for _ in range(self._n_substeps):
             tau = opspace(
                 model=self._model,
@@ -273,9 +307,52 @@ class FrankaGymEnv(MujocoGymEnv):
                 ori=self._data.mocap_quat[0],
                 joint=self._home_position,
                 gravity_comp=True,
+                pos_gains=pos_gains,
+                ori_gains=ori_gains,
+                damping_ratio=damping_ratio,
             )
             self._data.ctrl[self._panda_ctrl_ids] = tau
             mujoco.mj_step(self._model, self._data)
+    
+    def apply_absolute_pose(self, pose_matrix, grasp_command=1):
+        """Apply absolute pose control directly.
+        
+        This method sets the mocap to the target absolute pose directly,
+        similar to how real robots work with absolute pose control.
+        This only sets the mocap pose and gripper, but does NOT step physics.
+        The caller should call step() separately to advance physics.
+        
+        Args:
+            pose_matrix: 4x4 transformation matrix (position in meters, rotation as rotation matrix)
+            grasp_command: Gripper command (0=close, 1=stay, 2=open, same as apply_action)
+        """
+        from scipy.spatial.transform import Rotation
+        
+        # Extract position and rotation from pose matrix
+        target_pos = pose_matrix[:3, 3]
+        target_rot_matrix = pose_matrix[:3, :3]
+        
+        # Clamp position to bounds
+        npos = np.clip(target_pos, *self._cartesian_bounds)
+        self._data.mocap_pos[0] = npos
+        
+        # Convert rotation matrix to quaternion [w, x, y, z]
+        target_rot = Rotation.from_matrix(target_rot_matrix)
+        target_quat = target_rot.as_quat()  # Returns [x, y, z, w]
+        self._data.mocap_quat[0] = np.array([target_quat[3], target_quat[0], target_quat[1], target_quat[2]])  # [w, x, y, z]
+        
+        # Set gripper (same as apply_action)
+        if self._is_vacuum_gripper:
+            if grasp_command > 0.3:
+                self._data.ctrl[self._gripper_ctrl_id] = 1.0
+            else:
+                self._data.ctrl[self._gripper_ctrl_id] = 0.0
+        else:
+            g = self._data.ctrl[self._gripper_ctrl_id] / MAX_GRIPPER_COMMAND
+            ng = np.clip(g + (grasp_command - 1), 0.0, 1.0)  # grasp_command: 0=close, 1=stay, 2=open
+            self._data.ctrl[self._gripper_ctrl_id] = ng * MAX_GRIPPER_COMMAND
+        
+        # Note: Physics stepping is handled by the caller (e.g., in step())
 
     def get_robot_state(self):
         """Get the current state of the robot."""
