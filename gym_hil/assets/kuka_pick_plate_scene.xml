@@ -21,11 +21,12 @@
 
     <keyframe>
         <!-- KUKA home: qpos="0 0.785398 0 -1.5708 0 0 -1.5708" (joint7 rotated -90deg, gripper faces down) + plate initial state -->
-        <key name="home" qpos="0 0.785398 0 -1.5708 0 1.5708 0 0.5 0 0.005 1 0 0 0"/>
+        <key name="home" qpos="0 0.785398 0 -1.5708 0 0.785398 0 0.5 0 0.005 1 0 0 0"/>
     </keyframe>
 
     <worldbody>
-      <camera name="front" pos="1.3 0.0 0.7" quat="0.5963678 0.3799282 0.3799282 0.5963678" fovy="45"/>
+      <!-- Front camera: adjusted for better view of KUKA workspace and plate interaction -->
+      <camera name="front" pos="1.0 0.0 0.5" quat="0.5963678 0.3799282 0.3799282 0.5963678" fovy="50"/>
       <light pos="0 0 3" dir="0 0 -1" diffuse="1 1 1" specular=".3 .3 .3"/>
       <light pos="0 -.5 .4" mode="targetbodycom" target="plate_body" diffuse=".8 .8 .8" specular=".3 .3 .3"/>
       
@@ -33,7 +34,7 @@
             contype="1" conaffinity="1"
             solimp="0.99 0.99 0.01" solref="0.002 1" friction="5 5 5"/>
 
-      <body name="plate_body" pos="0.5 0 .005">
+      <body name="plate_body" pos="0.6 0 .005">
         <freejoint name="plate_joint"/>
         <geom name="plate" type="box" size="0.2 0.15 0.005" mass="1.0" material="window_glass"
               contype="1" conaffinity="1" priority="1"

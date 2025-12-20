@@ -163,6 +163,9 @@
                     <geom class="visual" mesh="link_7"/>
                     <geom class="collision" size="0.06" pos="0 0 0.001"/>
                     <site name="attachment_site" pos="0 0 0.045"/>
+                    <!-- Wrist camera for visual feedback -->
+                    <camera name="handcam_depth" pos="-0.05 0 0" fovy="62" quat="0 1 -1 0"/>
+                    <camera name="handcam_rgb" pos="-0.05 0.015 0" fovy="42.5" quat="0 1 -1 0"/>
                     
                     <!-- Vacuum gripper attached to link7 -->
                     <body name="vacuum_gripper" pos="0 0 0.15" quat="0 1 0 0" childclass="vacuum_gripper">
