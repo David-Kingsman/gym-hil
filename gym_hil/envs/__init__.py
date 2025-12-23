@@ -20,6 +20,7 @@ from gym_hil.envs.panda_pick_gym_env import PandaPickCubeGymEnv
 from gym_hil.envs.panda_pick_gym_ft_env import PandaPickCubeGymFtEnv
 from gym_hil.envs.panda_pick_plate_gym_env import PandaPickPlateGymEnv
 from gym_hil.envs.kuka_pick_plate_gym_env import KukaPickPlateGymEnv
+from gym_hil.envs.kuka_window_assembly_env import KukaWindowAssemblyEnv
 
 # Alias for compatibility
 MasonryBlockInsertionGymEnv = PandaMasonryBlockInsertionEnv
@@ -30,6 +31,7 @@ __all__ = [
     "PandaPickCubeGymFtEnv",
     "PandaPickPlateGymEnv",
     "KukaPickPlateGymEnv",
+    "KukaWindowAssemblyEnv",
     "PandaArrangeBoxesGymEnv",
     "MasonryBlockInsertionGymEnv",
     "PandaMasonryBlockInsertionEnv",

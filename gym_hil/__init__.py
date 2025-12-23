@@ -63,6 +63,13 @@ register(
     max_episode_steps=100,
 )
 
+# KUKA Pick Window Environments
+register(
+    id="gym_hil/KukaPickWindowBase-v0",  # KUKA iiwa14 window pick with vacuum gripper base environment
+    entry_point="gym_hil.envs:KukaWindowAssemblyEnv",
+    max_episode_steps=100,
+)
+
 # Register the viewer wrapper
 register(
     id="gym_hil/PandaPickCubeViewer-v0",
@@ -170,6 +177,38 @@ register(
         "roll_step_size": 0.1,  # Step size for roll rotation (radians) - ~5.7 degrees for smoother control
         "pitch_step_size": 0.1,  # Step size for pitch rotation (radians) - ~5.7 degrees for smoother control
         "yaw_step_size": 0.1,  # Step size for yaw rotation (radians) - ~5.7 degrees for smoother control
+    },
+)
+
+# KUKA Pick Window with Gamepad
+register(
+    id="gym_hil/KukaPickWindowGamepad-v0",
+    entry_point="gym_hil.wrappers.factory:make_env",
+    max_episode_steps=100,
+    kwargs={
+        "env_id": "gym_hil/KukaPickWindowBase-v0",  # Use the KUKA window pick base environment
+        "use_viewer": True,
+        "use_inputs_control": True,
+        "use_gamepad": True,
+        "use_gripper": True,  # Vacuum gripper control
+    },
+)
+
+register(
+    id="gym_hil/KukaPickWindowGamepad6DoF-v0",
+    entry_point="gym_hil.wrappers.factory:make_env",
+    max_episode_steps=300,  # Increased to allow control_time_s * fps (20s * 10fps = 200, with buffer)
+    kwargs={
+        "env_id": "gym_hil/KukaPickWindowBase-v0",  # Use the KUKA window pick base environment
+        "use_viewer": True,
+        "use_inputs_control": True,
+        "use_gamepad": True,
+        "use_gamepad_6dof": True,  # Enable 6-DoF gamepad control (xyz + rx ry rz)
+        "use_gripper": True,  # Vacuum gripper control
+        "roll_step_size": 0.05,  # Step size for roll rotation (radians) - ~5.7 degrees for smoother control
+        "pitch_step_size": 0.05,  # Step size for pitch rotation (radians) - ~5.7 degrees for smoother control
+        "yaw_step_size": 0.02,  # Step size for yaw rotation (radians) - ~5.7 degrees for smoother control
+        "reward_type": "sparse",  # Use dense reward for better feedback during training
     },
 )
 
