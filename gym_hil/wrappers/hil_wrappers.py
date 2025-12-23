@@ -239,6 +239,10 @@ class InputsControlWrapper(gym.Wrapper):
         # For Meta Quest absolute pose control
         self._meta_quest_absolute_pose = None
         self._meta_quest_gripper_cmd = 1.0
+        
+        # Track if SUCCESS button was pressed in this episode
+        # When SUCCESS is pressed, reward should be 1.0 for all subsequent steps
+        self._success_pressed = False
 
     def get_gamepad_action(self):
         """
@@ -457,12 +461,38 @@ class InputsControlWrapper(gym.Wrapper):
             # Step the environment
             obs, reward, terminated, truncated, info = self.env.step(action)
 
+        # Check terminate_on_success setting from underlying environment
+        # Unwrap to find the base environment that has _terminate_on_success attribute
+        unwrapped_env = self.env
+        while hasattr(unwrapped_env, 'env'):
+            unwrapped_env = unwrapped_env.env
+        terminate_on_success = getattr(unwrapped_env, '_terminate_on_success', True)
+        
         # Add episode ending if requested via gamepad
-        terminated = terminated or truncated or terminate_episode
+        # If terminate_on_success is False, don't terminate even if SUCCESS button is pressed
+        # (This allows collecting more positive examples for reward classifier training)
+        if terminate_episode and terminate_on_success:
+            terminated = True
+        elif terminate_episode and not terminate_on_success:
+            # Don't terminate, but still set reward and log
+            logging.info(f"[SUCCESS] SUCCESS button pressed - Episode continues (terminate_on_success=false, reward=1.0)")
+        else:
+            # Normal termination from environment
+            terminated = terminated or truncated
 
+        # Track if SUCCESS button was pressed in this episode
+        # When SUCCESS is pressed, reward should be 1.0 for all subsequent steps
         if success:
+            self._success_pressed = True
             reward = 1.0
-            logging.info("Episode ended successfully with reward 1.0")
+            if terminate_on_success:
+                logging.info("Episode ended successfully with reward 1.0")
+            else:
+                logging.info("[SUCCESS] SUCCESS button pressed - reward=1.0 for this and all subsequent steps")
+        
+        # If SUCCESS was pressed earlier, keep reward=1.0 for all subsequent steps
+        if hasattr(self, '_success_pressed') and self._success_pressed:
+            reward = 1.0
 
         info["is_intervention"] = is_intervention
         action_intervention = action
@@ -485,6 +515,8 @@ class InputsControlWrapper(gym.Wrapper):
     def reset(self, **kwargs):
         """Reset the environment."""
         self.controller.reset()
+        # Reset success state when episode resets
+        self._success_pressed = False
         obs, info = self.env.reset(**kwargs)
         
         # Initialize last pose for Meta Quest absolute pose control

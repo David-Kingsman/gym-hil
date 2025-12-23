@@ -158,18 +158,19 @@
                   <geom class="collision" size="0.08"/>
                   <body name="link7" pos="0 0.081 0" quat="0 0 1 1">
                     <inertial mass="1.2" pos="0 0 0.02" diaginertia="0.001 0.001 0.001"/>
-                    <joint name="joint7" class="joint3"/>
+                    <joint name="joint7" class="joint3" range="0 0" damping="1000"/>
                     <site name="joint7"/>
                     <geom class="visual" mesh="link_7"/>
                     <geom class="collision" size="0.06" pos="0 0 0.001"/>
                     <site name="attachment_site" pos="0 0 0.045"/>
                     <!-- Wrist camera for visual feedback -->
                     <camera name="handcam_depth" pos="-0.05 0 0" fovy="62" quat="0 1 -1 0"/>
-                    <camera name="handcam_rgb" pos="-0.05 0.015 0" fovy="42.5" quat="0 1 -1 0"/>
+                    <!-- <camera name="handcam_rgb" pos="-0.05 0.015 0" fovy="42.5" quat="0 1 -1 0"/> -->
+                    <camera name="handcam_rgb" pos=" -0.140 0.005 -0.010" fovy="82" quat="0.049325 0.705384 -0.705384 -0.049325"/>
                     
                     <!-- Vacuum gripper attached to link7 -->
                     <body name="vacuum_gripper" pos="0 0 0.15" quat="0 1 0 0" childclass="vacuum_gripper">
-                      <inertial mass="0.5" pos="0 0 0.05" diaginertia="0.005 0.005 0.005"/>
+                      <inertial mass="0.1" pos="0 0 0.05" diaginertia="0.005 0.005 0.005"/>
                       
                       <geom type="mesh" mesh="pp_frame" material="pp_black" 
                             pos="-0.135010 -0.792761 -0.235147" quat="1 0 0 0"
@@ -222,8 +223,8 @@
     <motor name="actuator4" joint="joint4" ctrlrange="-87 87"/>
     <motor name="actuator5" joint="joint5" ctrlrange="-12 12"/>
     <motor name="actuator6" joint="joint6" ctrlrange="-12 12"/>
-    <motor name="actuator7" joint="joint7" ctrlrange="-12 12"/>
-    <adhesion name="fingers_actuator" body="vacuum_gripper" ctrlrange="0 1" gain="200"/>
+    <motor name="actuator7" joint="joint7" ctrlrange="0 0"/>
+    <adhesion name="fingers_actuator" body="vacuum_gripper" ctrlrange="0 1" gain="50"/>
   </actuator>
 
   <sensor>

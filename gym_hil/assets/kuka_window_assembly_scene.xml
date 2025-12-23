@@ -1,0 +1,150 @@
+<mujoco model="kuka_window_assembly_scene">
+    <include file="kuka_vacuum.xml"/>
+
+    <option timestep=".001" noslip_iterations="50" noslip_tolerance="0" impratio="100" cone="elliptic"/>
+
+    <statistic center="0.4 0 0.4" extent=".8"/>
+
+    <visual>
+      <headlight diffuse=".4 .4 .4" ambient=".5 .5 .5"/>
+      <global azimuth="160" elevation="-20" offheight="128" offwidth="128"/>
+      <quality offsamples="8"/>
+    </visual>
+
+    <asset>
+      <texture type="skybox" builtin="gradient" rgb1=".3 .5 .7" rgb2="0 0 0" width="32" height="512"/>
+      <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1=".1 .2 .3" rgb2=".2 .3 .4"/>
+      <material name="grid" texture="grid" texrepeat="2 2" texuniform="true" reflectance="0"/>
+      <material name="glass_mat" rgba="0.7 0.85 1.0 0.2" shininess="0.95" reflectance="0.8" specular="0.9"/>
+      <material name="frame_mat" rgba="0.2 0.2 0.2 1" shininess="0.1"/>
+      <material name="window_frame_mat" rgba="0.6 0.3 0.2 1" shininess="0.3" reflectance="0.2"/>
+    </asset>
+
+    <keyframe>
+        <!-- KUKA home: qpos="0 0.785398 0 -1.5708 0 0.785398 0" + window initial state (lying flat on ground, same position as plate) -->
+        <key name="home" qpos="0 0.785398 0 -1.5708 0 0.785398 0 0.575 0.0 0.005 1 0 0 0"/>
+    </keyframe>
+
+    <worldbody>
+      <!-- Front camera: adjusted for better view of KUKA workspace and window interaction -->
+      <!-- <camera name="front" pos="1.0 0.0 0.5" quat="0.5963678 0.3799282 0.3799282 0.5963678" fovy="50"/> -->
+      <camera name="front" pos="0.040 0.030 0.310" quat="0.469304 0.512156 -0.530353 -0.485979" fovy="50"/>
+      <light pos="0 0 3" dir="0 0 -1" diffuse="1 1 1" specular=".3 .3 .3"/>
+      <light pos="0 -.5 .4" mode="targetbodycom" target="window_body" diffuse=".8 .8 .8" specular=".3 .3 .3"/>
+      
+      <geom name="floor" size="3 3 0.01" type="plane" material="grid" 
+            contype="1" conaffinity="1"
+            solimp="0.99 0.99 0.01" solref="0.002 1" friction="5 5 5"/>
+
+      <!-- Window panel: lying flat on ground -->
+      <!-- Window dimensions: 0.5m x 0.5m x 0.01m (size="0.25 0.25 0.005" = half-extents) -->
+      <!-- Center Z position = 0.005 (half-thickness), so bottom touches ground at Z=0 -->
+      <!-- Window position: X=0.580m (aligned with vacuum gripper), Y=0.0m, Z=0.005m -->
+      <body name="window_body" pos="0.576 0.0 0.005">
+        <freejoint name="window_joint"/>
+        <!-- Collision geometry: flat panel, thickness in Z direction -->
+        <!-- Reduced mass for smoother movement when attached to vacuum gripper -->
+        <geom name="window_collision" type="box" size="0.25 0.25 0.005" mass="0.1" material="glass_mat"
+              contype="1" conaffinity="1" priority="1"
+              solimp="0.9 0.95 0.001" solref="0.01 1" friction="5 5 5" condim="6"/>
+        <!-- Visual frame (thick border) -->
+        <geom name="visual_frame_top" type="box" size="0.25 0.02 0.004" pos="0 0.23 0.004" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <geom name="visual_frame_bottom" type="box" size="0.25 0.02 0.004" pos="0 -0.23 0.004" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <geom name="visual_frame_left" type="box" size="0.02 0.25 0.004" pos="-0.23 0 0.004" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <geom name="visual_frame_right" type="box" size="0.02 0.25 0.004" pos="0.23 0 0.004" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <!-- Visual glass (center pane) - highly transparent -->
+        <geom name="visual_glass" type="box" size="0.21 0.21 0.001" pos="0 0 0.003" material="glass_mat" rgba="0.7 0.85 1.0 0.2" contype="0" conaffinity="0"/>
+        <!-- Red sphere at window center for visualization (same size as gripper pinch site) -->
+        <geom name="window_center_marker" type="sphere" size="0.003" pos="0 0 0.01" rgba="1 0 0 1" contype="0" conaffinity="0"/>
+        <site name="window_grasp_site" pos="0 0 0" size="0.02" rgba="1 0 0 0"/>
+      </body>
+
+      <!-- Facade wall with rectangular slot for window insertion -->
+      <!-- Wall position: X=1.0 (forward from robot base), Y=0 (center), Z=0.4 (height of slot center) -->
+      <!-- Note: Wall is rotated 90° around Z-axis, so slot faces robot (normal = -X direction) -->
+      <!-- Wall rotated 90 degrees around Z-axis (quat="0.707 0 0 0.707" = 90° rotation around Z) -->
+      <!-- This rotates the wall so the slot faces the robot (wall normal points in -X direction) -->
+      <!-- 
+      Fixed slot dimensions for proper window insertion:
+      - Window size: 0.500m (width) x 0.500m (height) x 0.010m (thickness)
+      - Slot size: 0.504m (width) x 0.504m (height) with 2mm clearance per side
+      - Slot center at world Z=0.4
+      -->
+      <body name="facade_wall" pos="0.9 0 0.4" quat="0.707 0 0 0.707">
+        <!-- Wall structure (hollow frame to create slot) -->
+        <!-- Left wall section: positioned to create 0.504m slot width -->
+        <geom name="wall_left" type="box" size="0.15 0.025 0.5" pos="-0.402 0 0" material="frame_mat" rgba="0.8 0.8 0.8 1"/>
+        <!-- Right wall section: positioned to create 0.504m slot width -->
+        <geom name="wall_right" type="box" size="0.15 0.025 0.5" pos="0.402 0 0" material="frame_mat" rgba="0.8 0.8 0.8 1"/>
+        <!-- Top wall section: positioned to create 0.504m slot height -->
+        <geom name="wall_top" type="box" size="0.552 0.025 0.15" pos="0 0 0.402" material="frame_mat" rgba="0.8 0.8 0.8 1"/>
+        <!-- Bottom wall section: positioned to create 0.504m slot height -->
+        <geom name="wall_bottom" type="box" size="0.552 0.025 0.15" pos="0 0 -0.402" material="frame_mat" rgba="0.8 0.8 0.8 1"/>
+        <!-- Back wall frame (behind slot) - transparent with collision only at edges to create a gap -->
+        <!-- Slot depth: 0.03m (3cm) to accommodate window thickness of 0.01m (1cm) with clearance -->
+        <!-- Position: local Y=-0.03 means world X=0.9-0.03=0.87m (3cm from wall front surface) -->
+        <!-- Frame structure: only edges have collision, center is open (gap) for window insertion -->
+        <!-- Left edge of back frame -->
+        <geom name="wall_back_left" type="box" size="0.01 0.002 0.252" pos="-0.242 -0.03 0" material="frame_mat" rgba="0.9 0.9 0.9 0.1" 
+              contype="1" conaffinity="1" 
+              solimp="0.9 0.95 0.001" solref="0.01 1" friction="5 5 5" condim="6"/>
+        <!-- Right edge of back frame -->
+        <geom name="wall_back_right" type="box" size="0.01 0.002 0.252" pos="0.242 -0.03 0" material="frame_mat" rgba="0.9 0.9 0.9 0.1" 
+              contype="1" conaffinity="1" 
+              solimp="0.9 0.95 0.001" solref="0.01 1" friction="5 5 5" condim="6"/>
+        <!-- Top edge of back frame -->
+        <geom name="wall_back_top" type="box" size="0.232 0.002 0.01" pos="0 -0.03 0.242" material="frame_mat" rgba="0.9 0.9 0.9 0.1" 
+              contype="1" conaffinity="1" 
+              solimp="0.9 0.95 0.001" solref="0.01 1" friction="5 5 5" condim="6"/>
+        <!-- Bottom edge of back frame -->
+        <geom name="wall_back_bottom" type="box" size="0.232 0.002 0.01" pos="0 -0.03 -0.242" material="frame_mat" rgba="0.9 0.9 0.9 0.1" 
+              contype="1" conaffinity="1" 
+              solimp="0.9 0.95 0.001" solref="0.01 1" friction="5 5 5" condim="6"/>
+        <!-- Transparent back wall (visual only, no collision) - shows slot depth -->
+        <geom name="wall_back_visual" type="box" size="0.252 0.001 0.252" pos="0 -0.03 0" material="frame_mat" rgba="0.9 0.9 0.9 0.05" 
+              contype="0" conaffinity="0"/>
+        
+        <!-- Window frame layer: reddish-brown frame around the slot opening (similar to image 2) -->
+        <!-- Frame thickness: 0.01m (1cm), positioned slightly forward from wall surface -->
+        <!-- Left frame: positioned at left edge of slot -->
+        <geom name="frame_left" type="box" size="0.01 0.01 0.252" pos="-0.252 0.015 0" material="window_frame_mat" rgba="0.6 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <!-- Right frame: positioned at right edge of slot -->
+        <geom name="frame_right" type="box" size="0.01 0.01 0.252" pos="0.252 0.015 0" material="window_frame_mat" rgba="0.6 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <!-- Top frame: positioned at top edge of slot -->
+        <geom name="frame_top" type="box" size="0.252 0.01 0.01" pos="0 0.015 0.252" material="window_frame_mat" rgba="0.6 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <!-- Bottom frame: positioned at bottom edge of slot -->
+        <geom name="frame_bottom" type="box" size="0.252 0.01 0.01" pos="0 0.015 -0.252" material="window_frame_mat" rgba="0.6 0.3 0.2 1" contype="0" conaffinity="0"/>
+        
+        <!-- Outer decorative frame layer (thicker, more prominent) -->
+        <!-- Outer left frame -->
+        <geom name="frame_outer_left" type="box" size="0.015 0.015 0.26" pos="-0.26 0.02 0" material="window_frame_mat" rgba="0.5 0.25 0.15 1" contype="0" conaffinity="0"/>
+        <!-- Outer right frame -->
+        <geom name="frame_outer_right" type="box" size="0.015 0.015 0.26" pos="0.26 0.02 0" material="window_frame_mat" rgba="0.5 0.25 0.15 1" contype="0" conaffinity="0"/>
+        <!-- Outer top frame -->
+        <geom name="frame_outer_top" type="box" size="0.26 0.015 0.015" pos="0 0.02 0.26" material="window_frame_mat" rgba="0.5 0.25 0.15 1" contype="0" conaffinity="0"/>
+        <!-- Outer bottom frame -->
+        <geom name="frame_outer_bottom" type="box" size="0.26 0.015 0.015" pos="0 0.02 -0.26" material="window_frame_mat" rgba="0.5 0.25 0.15 1" contype="0" conaffinity="0"/>
+        
+        <!-- Target site: position closer to slot front surface (nearer to robot) -->
+        <!-- Slot size: 0.504m x 0.504m (2mm clearance per side for tight tolerance assembly) -->
+        <!-- Target position: near slot front surface (X≈0.88m in world, closer to robot) -->
+        <!-- Note: facade_wall is rotated 90° around Z, so local Y corresponds to world X -->
+        <!-- Local Y=0.02 means world X=0.9-0.02=0.88m (2cm forward from wall, near slot front) -->
+        <!-- Hidden visually (alpha=0) but still used for reward calculation -->
+        <site name="target_site" pos="0 0.02 0" size="0.01" rgba="0 1 0 0" type="sphere"/>
+        <!-- Red sphere at target center for visualization (same size as gripper pinch site) -->
+        <geom name="target_center_marker" type="sphere" size="0.003" pos="0 0.02 0" rgba="1 0 0 1" contype="0" conaffinity="0"/>
+      </body>
+
+      <body name="target" pos=".15 0 .5" quat="0 1 0 0" mocap="true">
+        <geom name="target" type="box" size=".03 .03 .03" contype="0" conaffinity="0" rgba=".6 .3 .3 0"/>
+      </body>
+    </worldbody>
+
+    <sensor>
+      <framepos name="window_pos" objtype="body" objname="window_body"/>
+      <framequat name="window_quat" objtype="body" objname="window_body"/>
+      <framepos name="target_pos" objtype="site" objname="target_site"/>
+    </sensor>
+</mujoco>
+

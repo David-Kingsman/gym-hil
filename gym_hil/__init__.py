@@ -205,9 +205,9 @@ register(
         "use_gamepad": True,
         "use_gamepad_6dof": True,  # Enable 6-DoF gamepad control (xyz + rx ry rz)
         "use_gripper": True,  # Vacuum gripper control
-        "roll_step_size": 0.05,  # Step size for roll rotation (radians) - ~5.7 degrees for smoother control
-        "pitch_step_size": 0.05,  # Step size for pitch rotation (radians) - ~5.7 degrees for smoother control
-        "yaw_step_size": 0.02,  # Step size for yaw rotation (radians) - ~5.7 degrees for smoother control
+        "roll_step_size": 0.03,  # Step size for roll rotation (radians) - ~5.7 degrees for smoother control
+        "pitch_step_size": 0.03,  # Step size for pitch rotation (radians) - ~5.7 degrees for smoother control
+        "yaw_step_size": 0.03,  # Step size for yaw rotation (radians) - ~5.7 degrees for smoother control
         "reward_type": "sparse",  # Use dense reward for better feedback during training
     },
 )
