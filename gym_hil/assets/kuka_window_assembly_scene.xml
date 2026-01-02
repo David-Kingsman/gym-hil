@@ -219,6 +219,106 @@
         <geom name="target_center_marker" type="sphere" size="0.003" pos="0 0.02 0" rgba="1 0 0 1" contype="0" conaffinity="0"/>
       </body>
 
+      <!-- 
+          左侧墙体（left_wall）
+          位置：Y=-1.104m（左侧，紧贴主墙体左边缘，0公分间隙）
+          主墙体宽度：1.104m（0.552*2），中心在Y=0，左边缘在Y=-0.552m
+          左侧墙体宽度：1.104m，中心在Y=-1.104m，右边缘在Y=-0.552m（与主墙体左边缘连接）
+          包含：完整的墙体结构（无窗户）
+      -->
+      <body name="left_wall" pos="0.9 -1.104 0.4" quat="0.707 0 0 0.707">
+        <!-- 墙体结构：与主墙体相同 -->
+        <!-- 
+            墙体结构：形成插槽的四个边框
+            本地坐标系下：
+              - left_wall_left: X=-0.402m（左侧边框）
+              - left_wall_right: X=0.402m（右侧边框）
+              - left_wall_top: Z=0.402m（顶部边框）
+              - left_wall_bottom: Z=-0.402m（底部边框）
+            插槽开口：X方向±0.377m（0.402-0.025），Z方向±0.377m，Y方向开放
+        -->
+        <geom name="left_wall_left" type="box" size="0.15 0.025 0.5" pos="-0.402 0 0" material="concrete_mat" />
+        <geom name="left_wall_right" type="box" size="0.15 0.025 0.5" pos="0.402 0 0" material="concrete_mat" />
+        <geom name="left_wall_top" type="box" size="0.552 0.025 0.15" pos="0 0 0.402" material="concrete_mat" />
+        <geom name="left_wall_bottom" type="box" size="0.552 0.025 0.15" pos="0 0 -0.402" material="concrete_mat" />
+        
+        <!-- 墙体视觉网格 -->
+        <geom name="left_wall_visual_mesh" type="mesh" mesh="wall_with_hole"
+          pos="0 0.026 0"
+          material="concrete_mat"
+          contype="0" conaffinity="0" density="0"/>
+        
+        <!-- 已安装完成的玻璃：静态几何体，仅用于显示（不参与碰撞） -->
+        <!-- 位置：Y=0.03（层级堆叠：墙(0) < 玻璃(0.03) < 内圈木框(0.035) < 外圈橙色边框(0.045)） -->
+        <!-- 尺寸：size="0.2475 0.005 0.2475"（X=宽度，Y=厚度，Z=高度） -->
+        <geom name="left_fin_glass" type="box" size="0.2475 0.005 0.2475" pos="0 0.03 0" material="glass_mat" contype="0" conaffinity="0"/>
+        
+        <!-- 内圈木框：紧贴玻璃边缘的装饰边框（仅视觉，不参与碰撞） -->
+        <!-- 位置：Y=0.035（在玻璃0.03之上，外圈橙色边框0.045之下），与主任务窗户的visual_frame一致 -->
+        <geom name="left_fin_inner_frame_T" type="box" size="0.2475 0.006 0.02" pos="0 0.035 0.2275" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <geom name="left_fin_inner_frame_B" type="box" size="0.2475 0.006 0.02" pos="0 0.035 -0.2275" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <geom name="left_fin_inner_frame_L" type="box" size="0.02 0.006 0.2475" pos="-0.2275 0.035 0" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <geom name="left_fin_inner_frame_R" type="box" size="0.02 0.006 0.2475" pos="0.2275 0.035 0" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+        
+        <!-- 窗户框架：插槽周围的装饰框架（仅视觉，不参与碰撞） -->
+        <!-- 位置：Y=0.045（大于墙体半厚度0.025），确保边框完全浮现在混凝土表面之上，避免深度冲突 -->
+        <!-- 厚度：size的第二个参数设为0.02，增加边框厚度以克服渲染误差 -->
+        <geom name="l_fin_f_L" type="box" size="0.01 0.02 0.252" pos="-0.252 0.045 0" material="window_frame_mat" contype="0" conaffinity="0"/>
+        <geom name="l_fin_f_R" type="box" size="0.01 0.02 0.252" pos="0.252 0.045 0" material="window_frame_mat" contype="0" conaffinity="0"/>
+        <geom name="l_fin_f_T" type="box" size="0.252 0.02 0.01" pos="0 0.045 0.252" material="window_frame_mat" contype="0" conaffinity="0"/>
+        <geom name="l_fin_f_B" type="box" size="0.252 0.02 0.01" pos="0 0.045 -0.252" material="window_frame_mat" contype="0" conaffinity="0"/>
+      </body>
+
+      <!-- 
+          右侧墙体（right_wall）
+          位置：Y=1.104m（右侧，紧贴主墙体右边缘，0公分间隙）
+          主墙体宽度：1.104m（0.552*2），中心在Y=0，右边缘在Y=0.552m
+          右侧墙体宽度：1.104m，中心在Y=1.104m，左边缘在Y=0.552m（与主墙体右边缘连接）
+          包含：完整的墙体结构（无窗户）
+      -->
+      <body name="right_wall" pos="0.9 1.104 0.4" quat="0.707 0 0 0.707">
+        <!-- 墙体结构：与主墙体相同 -->
+        <!-- 
+            墙体结构：形成插槽的四个边框
+            本地坐标系下：
+              - right_wall_left: X=-0.402m（左侧边框）
+              - right_wall_right: X=0.402m（右侧边框）
+              - right_wall_top: Z=0.402m（顶部边框）
+              - right_wall_bottom: Z=-0.402m（底部边框）
+            插槽开口：X方向±0.377m（0.402-0.025），Z方向±0.377m，Y方向开放
+        -->
+        <geom name="right_wall_left" type="box" size="0.15 0.025 0.5" pos="-0.402 0 0" material="concrete_mat" />
+        <geom name="right_wall_right" type="box" size="0.15 0.025 0.5" pos="0.402 0 0" material="concrete_mat" />
+        <geom name="right_wall_top" type="box" size="0.552 0.025 0.15" pos="0 0 0.402" material="concrete_mat" />
+        <geom name="right_wall_bottom" type="box" size="0.552 0.025 0.15" pos="0 0 -0.402" material="concrete_mat" />
+        
+        <!-- 墙体视觉网格 -->
+        <geom name="right_wall_visual_mesh" type="mesh" mesh="wall_with_hole"
+          pos="0 0.026 0"
+          material="concrete_mat"
+          contype="0" conaffinity="0" density="0"/>
+        
+        <!-- 已安装完成的玻璃：静态几何体，仅用于显示（不参与碰撞） -->
+        <!-- 位置：Y=0.03（层级堆叠：墙(0) < 玻璃(0.03) < 内圈木框(0.035) < 外圈橙色边框(0.045)） -->
+        <!-- 尺寸：size="0.2475 0.005 0.2475"（X=宽度，Y=厚度，Z=高度） -->
+        <geom name="right_fin_glass" type="box" size="0.2475 0.005 0.2475" pos="0 0.03 0" material="glass_mat" contype="0" conaffinity="0"/>
+        
+        <!-- 内圈木框：紧贴玻璃边缘的装饰边框（仅视觉，不参与碰撞） -->
+        <!-- 位置：Y=0.035（在玻璃0.03之上，外圈橙色边框0.045之下），与主任务窗户的visual_frame一致 -->
+        <geom name="right_fin_inner_frame_T" type="box" size="0.2475 0.006 0.02" pos="0 0.035 0.2275" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <geom name="right_fin_inner_frame_B" type="box" size="0.2475 0.006 0.02" pos="0 0.035 -0.2275" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <geom name="right_fin_inner_frame_L" type="box" size="0.02 0.006 0.2475" pos="-0.2275 0.035 0" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <geom name="right_fin_inner_frame_R" type="box" size="0.02 0.006 0.2475" pos="0.2275 0.035 0" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+        
+        <!-- 窗户框架：插槽周围的装饰框架（仅视觉，不参与碰撞） -->
+        <!-- 位置：Y=0.045（大于墙体半厚度0.025），确保边框完全浮现在混凝土表面之上，避免深度冲突 -->
+        <!-- 厚度：size的第二个参数设为0.02，增加边框厚度以克服渲染误差 -->
+        <geom name="r_fin_f_L" type="box" size="0.01 0.02 0.252" pos="-0.252 0.045 0" material="window_frame_mat" contype="0" conaffinity="0"/>
+        <geom name="r_fin_f_R" type="box" size="0.01 0.02 0.252" pos="0.252 0.045 0" material="window_frame_mat" contype="0" conaffinity="0"/>
+        <geom name="r_fin_f_T" type="box" size="0.252 0.02 0.01" pos="0 0.045 0.252" material="window_frame_mat" contype="0" conaffinity="0"/>
+        <geom name="r_fin_f_B" type="box" size="0.252 0.02 0.01" pos="0 0.045 -0.252" material="window_frame_mat" contype="0" conaffinity="0"/>
+      </body>
+
       <!-- 目标体：用于演示（可忽略） -->
       <body name="target" pos=".15 0 .5" quat="0 1 0 0" mocap="true">
         <geom name="target" type="box" size=".03 .03 .03" contype="0" conaffinity="0" rgba=".6 .3 .3 0"/>
