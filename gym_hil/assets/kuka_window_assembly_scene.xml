@@ -1,150 +1,258 @@
+<?xml version="1.0" ?>
+<!--
+    KUKA窗口安装场景配置文件
+    任务描述：机器人需要抓取平放在地面的窗户，将其竖立并插入外墙的插槽中
+    
+    场景布局：
+    - KUKA机器人：位于场景中心
+    - 窗户（window_body）：初始平放在地面（X=0.576m, Y=0, Z=0.005m）
+    - 外墙（facade_wall）：位于X=0.9m，包含一个0.504m x 0.504m的插槽
+    - 玻璃架（glass_rack）：位于窗户初始位置的左侧（Y=-0.5m）
+    
+    成功判定条件（在Python代码中）：
+    - 位置距离 < 3cm：窗户中心到target_site的距离
+    - 对齐度 > 90%：窗户法线方向与目标法线[-1, 0, 0]的对齐度
+    - 速度稳定性 < 1cm/s：确保窗户已稳定插入
+-->
 <mujoco model="kuka_window_assembly_scene">
+    <!-- 包含KUKA机器人模型和吸盘夹具 -->
     <include file="kuka_vacuum.xml"/>
 
+    <!-- 纹理文件目录 -->
+    <compiler texturedir="images"/>
+
+    <!-- 物理仿真参数 -->
+    <!-- timestep: 时间步长1ms，noslip_iterations: 摩擦迭代次数，cone: 摩擦锥类型 -->
     <option timestep=".001" noslip_iterations="50" noslip_tolerance="0" impratio="100" cone="elliptic"/>
 
+    <!-- 统计信息：用于自动调整视图，center为中心点，extent为范围 -->
     <statistic center="0.4 0 0.4" extent=".8"/>
 
+    <!-- 视觉渲染设置 -->
     <visual>
       <headlight diffuse=".4 .4 .4" ambient=".5 .5 .5"/>
-      <global azimuth="160" elevation="-20" offheight="128" offwidth="128"/>
+      <global azimuth="160" elevation="-20" offheight="512" offwidth="512"/>
       <quality offsamples="8"/>
     </visual>
 
+    <!-- 资源定义：纹理、材质、网格模型 -->
     <asset>
-      <texture type="skybox" builtin="gradient" rgb1=".3 .5 .7" rgb2="0 0 0" width="32" height="512"/>
+      <!-- 网格模型 -->
+      <mesh name="wall_with_hole" file="meshes/wall_with_hole_thick.obj"/>
+      <mesh name="glass_rack" file="meshes/A_frame_glass_rack/object_1.obj" scale="0.5 0.5 0.5"/>
+      
+      <!-- 纹理定义 -->
+      <texture name="concrete_tex" type="2d" file="concrete.png"/>
+      <texture name="skybox" type="skybox" gridsize="3 4" gridlayout=".U..LFRB.D.." file="dawn.png"/>
       <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1=".1 .2 .3" rgb2=".2 .3 .4"/>
+      <texture name="concrete_floor_tex" type="2d" file="white_marble_tile2.png"/>
+      
+      <!-- 材质定义 -->
+      <!-- 混凝土材质：用于墙体 -->
+      <material name="concrete_mat" texture="concrete_tex"
+            texrepeat="3 3" texuniform="false"
+            reflectance="0.05" shininess="0.05" specular="0.05"/>
+      
+      <!-- 网格材质：用于辅助显示 -->
       <material name="grid" texture="grid" texrepeat="2 2" texuniform="true" reflectance="0"/>
-      <material name="glass_mat" rgba="0.7 0.85 1.0 0.2" shininess="0.95" reflectance="0.8" specular="0.9"/>
+      
+      <!-- 混凝土地面材质：低反射率，防止反光 -->
+      <!-- rgba="0.5 0.5 0.5 1" - RGB灰色，alpha=1不透明 -->
+      <!-- reflectance/shininess/specular=0 - 完全无反射，防止地面反光 -->
+      <material name="concrete_floor_mat"
+          texture="concrete_floor_tex"
+          texrepeat="4 4" texuniform="true"
+          reflectance="0" shininess="0" specular="0"/>
+      
+      <!-- 玻璃材质：半透明，高反光 -->
+      <material name="glass_mat" rgba="0.7 0.85 1.0 0.2" shininess="0.2" reflectance="0.1" specular="0.15"/>
+      
+      <!-- 框架材质：深灰色，低反光 -->
       <material name="frame_mat" rgba="0.2 0.2 0.2 1" shininess="0.1"/>
+      
+      <!-- 窗户框架材质：棕色木纹 -->
       <material name="window_frame_mat" rgba="0.6 0.3 0.2 1" shininess="0.3" reflectance="0.2"/>
+      
+      <!-- 玻璃架材质：白色 -->
+      <material name="rack_mat" rgba="1.0 1.0 1.0 1" shininess="0.1" specular="0.05" reflectance="0"/>
     </asset>
 
+    <!-- 关键帧：定义初始状态 -->
     <keyframe>
-        <!-- KUKA home: qpos="0 0.785398 0 -1.5708 0 0.785398 0" + window initial state (lying flat on ground, same position as plate) -->
+        <!-- 
+            qpos格式：[KUKA 7个关节角度] [窗户位置x y z] [窗户四元数w x y z]
+            KUKA初始位置：关节角度配置，使机器人处于准备状态
+            窗户初始状态：pos=(0.575, 0.0, 0.005), quat=(1, 0, 0, 0) 表示平放在地面，Z轴向上
+        -->
         <key name="home" qpos="0 0.785398 0 -1.5708 0 0.785398 0 0.575 0.0 0.005 1 0 0 0"/>
     </keyframe>
 
+    <!-- 世界坐标系下的物体 -->
     <worldbody>
-      <!-- Front camera: adjusted for better view of KUKA workspace and window interaction -->
-      <!-- <camera name="front" pos="1.0 0.0 0.5" quat="0.5963678 0.3799282 0.3799282 0.5963678" fovy="50"/> -->
+      <!-- 摄像机：用于可视化 -->
       <camera name="front" pos="0.040 0.030 0.310" quat="0.469304 0.512156 -0.530353 -0.485979" fovy="50"/>
+      
+      <!-- 光源设置 -->
       <light pos="0 0 3" dir="0 0 -1" diffuse="1 1 1" specular=".3 .3 .3"/>
       <light pos="0 -.5 .4" mode="targetbodycom" target="window_body" diffuse=".8 .8 .8" specular=".3 .3 .3"/>
       
-      <geom name="floor" size="3 3 0.01" type="plane" material="grid" 
+      <!-- 地面：6m x 6m的平面 -->
+      <!-- size="3 3 0.01" 表示半轴长度：X=3m, Y=3m, Z=0.01m（平面厚度） -->
+      <!-- friction="5 5 5" - 高摩擦力（滑动、扭转、滚动） -->
+      <geom name="floor" size="3 3 0.01" type="plane" material="concrete_floor_mat" 
+            rgba="0.4 0.4 0.4 1"
             contype="1" conaffinity="1"
             solimp="0.99 0.99 0.01" solref="0.002 1" friction="5 5 5"/>
 
-      <!-- Window panel: lying flat on ground -->
-      <!-- Window dimensions: 0.5m x 0.5m x 0.01m (size="0.25 0.25 0.005" = half-extents) -->
-      <!-- Center Z position = 0.005 (half-thickness), so bottom touches ground at Z=0 -->
-      <!-- Window position: X=0.580m (aligned with vacuum gripper), Y=0.0m, Z=0.005m -->
+      <!-- 
+          窗户面板（window_body）
+          初始状态：平放在地面上
+          尺寸：0.495m x 0.495m x 0.01m（厚度）
+          位置：X=0.576m（与吸盘对齐），Y=0m，Z=0.005m（底面Z=0，中心Z=0.005）
+          坐标系：
+            - X轴：宽度方向（初始状态：水平，指向机器人+X方向）
+            - Y轴：高度方向（初始状态：水平，指向机器人+Y方向）
+            - Z轴：法线方向/厚度方向（初始状态：垂直向上）
+          竖立后：X轴应指向目标法线方向[-1, 0, 0]（指向机器人方向），Z轴可能仍接近垂直向上
+      -->
       <body name="window_body" pos="0.576 0.0 0.005">
+        <!-- 自由关节：允许6自由度运动（3个平移 + 3个旋转） -->
         <freejoint name="window_joint"/>
-        <!-- Collision geometry: flat panel, thickness in Z direction -->
-        <!-- Reduced mass for smoother movement when attached to vacuum gripper -->
-        <geom name="window_collision" type="box" size="0.25 0.25 0.005" mass="0.1" material="glass_mat"
+        
+        <!-- 碰撞几何体：窗户的实际碰撞形状 -->
+        <!-- size="0.2475 0.2475 0.005" 表示半轴长度：X/Y=0.2475m, Z=0.005m（厚度） -->
+        <!-- mass="0.1" - 质量0.1kg，较轻便于吸盘抓取 -->
+        <!-- condim="6" - 6维接触（摩擦 + 扭转） -->
+        <geom name="window_collision" type="box" size="0.2475 0.2475 0.005" mass="0.1" material="glass_mat"
               contype="1" conaffinity="1" priority="1"
               solimp="0.9 0.95 0.001" solref="0.01 1" friction="5 5 5" condim="6"/>
-        <!-- Visual frame (thick border) -->
-        <geom name="visual_frame_top" type="box" size="0.25 0.02 0.004" pos="0 0.23 0.004" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
-        <geom name="visual_frame_bottom" type="box" size="0.25 0.02 0.004" pos="0 -0.23 0.004" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
-        <geom name="visual_frame_left" type="box" size="0.02 0.25 0.004" pos="-0.23 0 0.004" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
-        <geom name="visual_frame_right" type="box" size="0.02 0.25 0.004" pos="0.23 0 0.004" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
-        <!-- Visual glass (center pane) - highly transparent -->
-        <geom name="visual_glass" type="box" size="0.21 0.21 0.001" pos="0 0 0.003" material="glass_mat" rgba="0.7 0.85 1.0 0.2" contype="0" conaffinity="0"/>
-        <!-- Red sphere at window center for visualization (same size as gripper pinch site) -->
+        
+        <!-- 视觉边框：仅用于显示，不参与碰撞（contype="0" conaffinity="0"） -->
+        <geom name="visual_frame_top" type="box" size="0.2475 0.02 0.004" pos="0 0.2275 0.004" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <geom name="visual_frame_bottom" type="box" size="0.2475 0.02 0.004" pos="0 -0.2275 0.004" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <geom name="visual_frame_left" type="box" size="0.02 0.2475 0.004" pos="-0.2275 0 0.004" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <geom name="visual_frame_right" type="box" size="0.02 0.2475 0.004" pos="0.2275 0 0.004" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+        
+        <!-- 透明玻璃：仅用于显示 -->
+        <geom name="visual_glass" type="box" size="0.2075 0.2075 0.001" pos="0 0 0.003" material="glass_mat" rgba="0.7 0.85 1.0 0.2" contype="0" conaffinity="0"/>
+        
+        <!-- 中心标记：红色小球，用于调试（显示窗户中心位置） -->
         <geom name="window_center_marker" type="sphere" size="0.003" pos="0 0 0.01" rgba="1 0 0 1" contype="0" conaffinity="0"/>
+        
+        <!-- 抓取点：用于机器人抓取参考 -->
         <site name="window_grasp_site" pos="0 0 0" size="0.02" rgba="1 0 0 0"/>
       </body>
 
-      <!-- Facade wall with rectangular slot for window insertion -->
-      <!-- Wall position: X=1.0 (forward from robot base), Y=0 (center), Z=0.4 (height of slot center) -->
-      <!-- Note: Wall is rotated 90° around Z-axis, so slot faces robot (normal = -X direction) -->
-      <!-- Wall rotated 90 degrees around Z-axis (quat="0.707 0 0 0.707" = 90° rotation around Z) -->
-      <!-- This rotates the wall so the slot faces the robot (wall normal points in -X direction) -->
       <!-- 
-      Fixed slot dimensions for proper window insertion:
-      - Window size: 0.500m (width) x 0.500m (height) x 0.010m (thickness)
-      - Slot size: 0.504m (width) x 0.504m (height) with 2mm clearance per side
-      - Slot center at world Z=0.4
+          外墙（facade_wall）
+          位置：世界坐标系 pos="0.9 0 0.4"，旋转 quat="0.707 0 0 0.707"（绕Z轴旋转90度）
+          坐标系变换：
+            - 墙体的本地坐标系：Y轴指向世界+X方向，Z轴指向世界+Z方向
+            - 世界坐标系中的目标法线：[-1, 0, 0]（指向机器人方向）
+          插槽尺寸：0.504m x 0.504m（略大于窗户0.495m，留出安装间隙）
       -->
       <body name="facade_wall" pos="0.9 0 0.4" quat="0.707 0 0 0.707">
-        <!-- Wall structure (hollow frame to create slot) -->
-        <!-- Left wall section: positioned to create 0.504m slot width -->
-        <geom name="wall_left" type="box" size="0.15 0.025 0.5" pos="-0.402 0 0" material="frame_mat" rgba="0.8 0.8 0.8 1"/>
-        <!-- Right wall section: positioned to create 0.504m slot width -->
-        <geom name="wall_right" type="box" size="0.15 0.025 0.5" pos="0.402 0 0" material="frame_mat" rgba="0.8 0.8 0.8 1"/>
-        <!-- Top wall section: positioned to create 0.504m slot height -->
-        <geom name="wall_top" type="box" size="0.552 0.025 0.15" pos="0 0 0.402" material="frame_mat" rgba="0.8 0.8 0.8 1"/>
-        <!-- Bottom wall section: positioned to create 0.504m slot height -->
-        <geom name="wall_bottom" type="box" size="0.552 0.025 0.15" pos="0 0 -0.402" material="frame_mat" rgba="0.8 0.8 0.8 1"/>
-        <!-- Back wall frame (behind slot) - transparent with collision only at edges to create a gap -->
-        <!-- Slot depth: 0.03m (3cm) to accommodate window thickness of 0.01m (1cm) with clearance -->
-        <!-- Position: local Y=-0.03 means world X=0.9-0.03=0.87m (3cm from wall front surface) -->
-        <!-- Frame structure: only edges have collision, center is open (gap) for window insertion -->
-        <!-- Left edge of back frame -->
+        <!-- 
+            墙体结构：形成插槽的四个边框
+            本地坐标系下：
+              - wall_left: X=-0.402m（左侧边框）
+              - wall_right: X=0.402m（右侧边框）
+              - wall_top: Z=0.402m（顶部边框）
+              - wall_bottom: Z=-0.402m（底部边框）
+            插槽开口：X方向±0.377m（0.402-0.025），Z方向±0.377m，Y方向开放
+        -->
+        <geom name="wall_left" type="box" size="0.15 0.025 0.5" pos="-0.402 0 0" material="concrete_mat" />
+        <geom name="wall_right" type="box" size="0.15 0.025 0.5" pos="0.402 0 0" material="concrete_mat" />
+        <geom name="wall_top" type="box" size="0.552 0.025 0.15" pos="0 0 0.402" material="concrete_mat" />
+        <geom name="wall_bottom" type="box" size="0.552 0.025 0.15" pos="0 0 -0.402" material="concrete_mat" />
+
+        <!-- 墙体视觉网格：仅用于显示 -->
+        <geom name="wall_visual_mesh" type="mesh" mesh="wall_with_hole"
+          pos="0 0.026 0"
+          material="concrete_mat"
+          contype="0" conaffinity="0" density="0"/>
+
+        <!-- 
+            后墙框架：位于插槽后方的碰撞体，仅边缘有碰撞
+            作用：阻止窗户插入过深，形成安装止挡
+            尺寸：边缘厚度0.01m，中心开放区域约0.484m x 0.484m
+        -->
         <geom name="wall_back_left" type="box" size="0.01 0.002 0.252" pos="-0.242 -0.03 0" material="frame_mat" rgba="0.9 0.9 0.9 0.1" 
               contype="1" conaffinity="1" 
               solimp="0.9 0.95 0.001" solref="0.01 1" friction="5 5 5" condim="6"/>
-        <!-- Right edge of back frame -->
         <geom name="wall_back_right" type="box" size="0.01 0.002 0.252" pos="0.242 -0.03 0" material="frame_mat" rgba="0.9 0.9 0.9 0.1" 
               contype="1" conaffinity="1" 
               solimp="0.9 0.95 0.001" solref="0.01 1" friction="5 5 5" condim="6"/>
-        <!-- Top edge of back frame -->
         <geom name="wall_back_top" type="box" size="0.232 0.002 0.01" pos="0 -0.03 0.242" material="frame_mat" rgba="0.9 0.9 0.9 0.1" 
               contype="1" conaffinity="1" 
               solimp="0.9 0.95 0.001" solref="0.01 1" friction="5 5 5" condim="6"/>
-        <!-- Bottom edge of back frame -->
         <geom name="wall_back_bottom" type="box" size="0.232 0.002 0.01" pos="0 -0.03 -0.242" material="frame_mat" rgba="0.9 0.9 0.9 0.1" 
               contype="1" conaffinity="1" 
               solimp="0.9 0.95 0.001" solref="0.01 1" friction="5 5 5" condim="6"/>
-        <!-- Transparent back wall (visual only, no collision) - shows slot depth -->
         <geom name="wall_back_visual" type="box" size="0.252 0.001 0.252" pos="0 -0.03 0" material="frame_mat" rgba="0.9 0.9 0.9 0.05" 
               contype="0" conaffinity="0"/>
         
-        <!-- Window frame layer: reddish-brown frame around the slot opening (similar to image 2) -->
-        <!-- Frame thickness: 0.01m (1cm), positioned slightly forward from wall surface -->
-        <!-- Left frame: positioned at left edge of slot -->
+        <!-- 窗户框架：插槽周围的装饰框架（仅视觉，不参与碰撞） -->
         <geom name="frame_left" type="box" size="0.01 0.01 0.252" pos="-0.252 0.015 0" material="window_frame_mat" rgba="0.6 0.3 0.2 1" contype="0" conaffinity="0"/>
-        <!-- Right frame: positioned at right edge of slot -->
         <geom name="frame_right" type="box" size="0.01 0.01 0.252" pos="0.252 0.015 0" material="window_frame_mat" rgba="0.6 0.3 0.2 1" contype="0" conaffinity="0"/>
-        <!-- Top frame: positioned at top edge of slot -->
         <geom name="frame_top" type="box" size="0.252 0.01 0.01" pos="0 0.015 0.252" material="window_frame_mat" rgba="0.6 0.3 0.2 1" contype="0" conaffinity="0"/>
-        <!-- Bottom frame: positioned at bottom edge of slot -->
         <geom name="frame_bottom" type="box" size="0.252 0.01 0.01" pos="0 0.015 -0.252" material="window_frame_mat" rgba="0.6 0.3 0.2 1" contype="0" conaffinity="0"/>
         
-        <!-- Outer decorative frame layer (thicker, more prominent) -->
-        <!-- Outer left frame -->
+        <!-- 外层装饰框架 -->
         <geom name="frame_outer_left" type="box" size="0.015 0.015 0.26" pos="-0.26 0.02 0" material="window_frame_mat" rgba="0.5 0.25 0.15 1" contype="0" conaffinity="0"/>
-        <!-- Outer right frame -->
         <geom name="frame_outer_right" type="box" size="0.015 0.015 0.26" pos="0.26 0.02 0" material="window_frame_mat" rgba="0.5 0.25 0.15 1" contype="0" conaffinity="0"/>
-        <!-- Outer top frame -->
         <geom name="frame_outer_top" type="box" size="0.26 0.015 0.015" pos="0 0.02 0.26" material="window_frame_mat" rgba="0.5 0.25 0.15 1" contype="0" conaffinity="0"/>
-        <!-- Outer bottom frame -->
         <geom name="frame_outer_bottom" type="box" size="0.26 0.015 0.015" pos="0 0.02 -0.26" material="window_frame_mat" rgba="0.5 0.25 0.15 1" contype="0" conaffinity="0"/>
         
-        <!-- Target site: position closer to slot front surface (nearer to robot) -->
-        <!-- Slot size: 0.504m x 0.504m (2mm clearance per side for tight tolerance assembly) -->
-        <!-- Target position: near slot front surface (X≈0.88m in world, closer to robot) -->
-        <!-- Note: facade_wall is rotated 90° around Z, so local Y corresponds to world X -->
-        <!-- Local Y=0.02 means world X=0.9-0.02=0.88m (2cm forward from wall, near slot front) -->
-        <!-- Hidden visually (alpha=0) but still used for reward calculation -->
+        <!-- 
+            目标位置（target_site）：用于奖励计算和成功判定
+            本地坐标：pos="0 0.02 0"（墙体坐标系：X=0中心，Y=0.02m前方，Z=0中心）
+            世界坐标：约(0.9, 0.02, 0.4)（考虑墙体旋转）
+            成功判定条件（在Python代码kuka_window_assembly_env.py中）：
+              1. 位置距离 < 0.5cm（_is_success中为0.5cm）：窗户中心到target_site的距离
+              2. 对齐度 > 90%：窗户X轴与目标法线[-1, 0, 0]的对齐度（使用X轴对齐度，因为竖立后X轴指向目标法线方向）
+              3. 速度稳定性 < 1cm/s：确保窗户已稳定插入
+        -->
         <site name="target_site" pos="0 0.02 0" size="0.01" rgba="0 1 0 0" type="sphere"/>
-        <!-- Red sphere at target center for visualization (same size as gripper pinch site) -->
+        
+        <!-- 目标中心标记：红色小球，用于调试（显示目标位置） -->
         <geom name="target_center_marker" type="sphere" size="0.003" pos="0 0.02 0" rgba="1 0 0 1" contype="0" conaffinity="0"/>
       </body>
 
+      <!-- 目标体：用于演示（可忽略） -->
       <body name="target" pos=".15 0 .5" quat="0 1 0 0" mocap="true">
         <geom name="target" type="box" size=".03 .03 .03" contype="0" conaffinity="0" rgba=".6 .3 .3 0"/>
       </body>
+
+      <!-- 
+          A-frame玻璃架（glass_rack）
+          位置：X=0.576m（与窗户初始位置对齐），Y=-0.5m（左侧），Z=0.175m
+          旋转：无旋转（quat="1 0 0 0"），模型已经Z轴向上，直接导入即可
+          Z位置说明：根据模型实际尺寸调整，使模型底部接触地面（Z=0）
+          模型尺寸：X=0.133m, Y=0.178m, Z=0.253m（高度）
+          用途：存储待安装的窗户（可选功能）
+      -->
+      <body name="glass_rack" pos="0.576 -0.5 0.175" quat="1 0 0 0">
+        <!-- 视觉mesh -->
+        <geom name="glass_rack_visual" type="mesh" mesh="glass_rack" 
+              material="rack_mat"
+              contype="0" conaffinity="0"/>
+        <!-- 碰撞几何体：使用mesh进行碰撞检测 -->
+        <geom name="glass_rack_collision" type="mesh" mesh="glass_rack" 
+              contype="1" conaffinity="1"
+              solimp="0.9 0.95 0.001" solref="0.01 1" friction="1.0 0.1 0.1"/>
+      </body>
     </worldbody>
 
+    <!-- 传感器：用于Python代码读取物体状态 -->
     <sensor>
+      <!-- 窗户位置：世界坐标系下的3D位置 -->
       <framepos name="window_pos" objtype="body" objname="window_body"/>
+      
+      <!-- 窗户姿态：四元数表示（w, x, y, z格式） -->
       <framequat name="window_quat" objtype="body" objname="window_body"/>
+      
+      <!-- 目标位置：target_site的世界坐标 -->
       <framepos name="target_pos" objtype="site" objname="target_site"/>
     </sensor>
 </mujoco>
-
