@@ -197,7 +197,7 @@ register(
 register(
     id="gym_hil/KukaPickWindowGamepad6DoF-v0",
     entry_point="gym_hil.wrappers.factory:make_env",
-    max_episode_steps=300,  # Increased to allow control_time_s * fps (20s * 10fps = 200, with buffer)
+    max_episode_steps=600,  # 60 seconds @ 10 FPS - increased for window assembly task (pick, rotate, align, insert)
     kwargs={
         "env_id": "gym_hil/KukaPickWindowBase-v0",  # Use the KUKA window pick base environment
         "use_viewer": True,

@@ -26,8 +26,11 @@ from scipy.spatial.transform import Rotation as R
 
 # KUKA iiwa14 home position 复位起始位置  
 _KUKA_HOME = np.asarray((0, 0.785398, 0, -1.5708, 0, 0.785398, 0))
+# _KUKA_HOME = np.asarray((-0.000001, 0.669889, 0.000001, -1.808026, -0.000001, 0.663681, -0.000002))
+# Joint positions: np.asarray((-0.000001, 0.669889, 0.000001, -1.808026, -0.000001, 0.663681, -0.000002))
+
 # _CARTESIAN_BOUNDS = np.asarray([[0.0, -0.5, 0], [1.5, 0.5, 1.0]])  # bounding box for the robot, X: 0.0-1.0, Y: -0.5-0.5, Z: 0-0.8
-_CARTESIAN_BOUNDS = np.asarray([[0.0, 0.0, 0], [0.9, 0.0, 0.41]])  # bounding box for the robot, X: 0.0-0.9, Y: 0.0-0.0, Z: 0-0.4
+_CARTESIAN_BOUNDS = np.asarray([[0.0, -0.4, 0], [0.9, 0.0, 0.44]])  # bounding box for the robot, X: 0.0-0.9, Y: 0.0-0.0, Z: 0-0.4
 _SAMPLING_BOUNDS = np.asarray([[0.3, -0.15], [0.6, 0.15]])  # Window sampling area (same as plate)
 
 # 窗口装配环境 
@@ -140,12 +143,13 @@ class KukaWindowAssemblyEnv(FrankaGymEnv):
         if self._random_window_position:
             window_xy = self._np_random.uniform(*_SAMPLING_BOUNDS)
             self._data.jnt("window_joint").qpos[:3] = (*window_xy, self._window_z)
+            # Reset window orientation to flat (no rotation, lying on ground) when random position
+            self._data.jnt("window_joint").qpos[3:7] = [1, 0, 0, 0]  # Identity quaternion
         else:
-            window_xy = np.asarray([0.6, 0.0])  # Same position as plate
-            self._data.jnt("window_joint").qpos[:3] = (*window_xy, self._window_z)
-            
-        # Reset window orientation to flat (no rotation, lying on ground)
-        self._data.jnt("window_joint").qpos[3:7] = [1, 0, 0, 0]  # Identity quaternion
+            # Use the position and orientation from XML keyframe (already set by mj_resetData)
+            # The window position and quaternion are defined in the XML keyframe, so we don't override them
+            # If you want to change the window position/orientation, modify the XML file's keyframe or body pos/quat
+            pass  # Keep the position and orientation from keyframe
         
         # Reset window velocity
         self._data.jnt("window_joint").qvel[:] = 0.0
@@ -197,6 +201,8 @@ class KukaWindowAssemblyEnv(FrankaGymEnv):
         window_body_id = mujoco.mj_name2id(self._model, mujoco.mjtObj.mjOBJ_BODY, "window_body")
         velocity = np.linalg.norm(self._data.cvel[window_body_id][:3])
         vacuum_on = self.get_gripper_pose()[0] > 127
+        # Get window quaternion (orientation) - MuJoCo format [w, x, y, z]
+        window_quat = self._data.sensor("window_quat").data  # [w, x, y, z]
         
         info = {
             "succeed": success,
@@ -204,7 +210,8 @@ class KukaWindowAssemblyEnv(FrankaGymEnv):
             "alignment": float(alignment),
             "velocity": float(velocity),
             "vacuum_on": bool(vacuum_on),
-            "window_pos": window_pos.tolist(),
+            "window_pos": window_pos.tolist(),  # [x, y, z] position
+            "window_quat": window_quat.tolist(),  # [w, x, y, z] quaternion
             "target_pos": target_pos.tolist(),
         }
         

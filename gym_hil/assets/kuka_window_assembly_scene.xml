@@ -39,7 +39,7 @@
     <asset>
       <!-- 网格模型 -->
       <mesh name="wall_with_hole" file="meshes/wall_with_hole_thick.obj"/>
-      <mesh name="glass_rack" file="meshes/A_frame_glass_rack/object_1.obj" scale="0.5 0.5 0.5"/>
+      <mesh name="glass_rack" file="meshes/A_frame_glass_rack/object_1.obj" scale="0.6 0.6 0.6"/>
       
       <!-- 纹理定义 -->
       <texture name="concrete_tex" type="2d" file="concrete.png"/>
@@ -82,9 +82,9 @@
         <!-- 
             qpos格式：[KUKA 7个关节角度] [窗户位置x y z] [窗户四元数w x y z]
             KUKA初始位置：关节角度配置，使机器人处于准备状态
-            窗户初始状态：pos=(0.575, 0.0, 0.005), quat=(1, 0, 0, 0) 表示平放在地面，Z轴向上
+            窗户初始状态：用户指定的位置和旋转
         -->
-        <key name="home" qpos="0 0.785398 0 -1.5708 0 0.785398 0 0.575 0.0 0.005 1 0 0 0"/>
+        <key name="home" qpos="0 0.785398 0 -1.5708 0 0.785398 0 0.514000 -0.432000 0.273000 0.786852 -0.617125 0.003272 0.003239"/>
     </keyframe>
 
     <!-- 世界坐标系下的物体 -->
@@ -115,7 +115,7 @@
             - Z轴：法线方向/厚度方向（初始状态：垂直向上）
           竖立后：X轴应指向目标法线方向[-1, 0, 0]（指向机器人方向），Z轴可能仍接近垂直向上
       -->
-      <body name="window_body" pos="0.576 0.0 0.005">
+      <body name="window_body" pos="0.532000 -0.432000 0.273000" quat="0.786852 -0.617125 0.003272 0.003239">
         <!-- 自由关节：允许6自由度运动（3个平移 + 3个旋转） -->
         <freejoint name="window_joint"/>
         
@@ -123,9 +123,9 @@
         <!-- size="0.2475 0.2475 0.005" 表示半轴长度：X/Y=0.2475m, Z=0.005m（厚度） -->
         <!-- mass="0.1" - 质量0.1kg，较轻便于吸盘抓取 -->
         <!-- condim="6" - 6维接触（摩擦 + 扭转） -->
-        <geom name="window_collision" type="box" size="0.2475 0.2475 0.005" mass="0.1" material="glass_mat"
+        <geom name="window_collision" type="box" size="0.2475 0.2475 0.005" mass="1.0" material="glass_mat"
               contype="1" conaffinity="1" priority="1"
-              solimp="0.9 0.95 0.001" solref="0.01 1" friction="5 5 5" condim="6"/>
+              solimp="0.9 0.95 0.001" solref="0.002 1" friction="5 5 5" condim="6"/>
         
         <!-- 视觉边框：仅用于显示，不参与碰撞（contype="0" conaffinity="0"） -->
         <geom name="visual_frame_top" type="box" size="0.2475 0.02 0.004" pos="0 0.2275 0.004" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
@@ -161,10 +161,18 @@
               - wall_bottom: Z=-0.402m（底部边框）
             插槽开口：X方向±0.377m（0.402-0.025），Z方向±0.377m，Y方向开放
         -->
-        <geom name="wall_left" type="box" size="0.15 0.025 0.5" pos="-0.402 0 0" material="concrete_mat" />
-        <geom name="wall_right" type="box" size="0.15 0.025 0.5" pos="0.402 0 0" material="concrete_mat" />
-        <geom name="wall_top" type="box" size="0.552 0.025 0.15" pos="0 0 0.402" material="concrete_mat" />
-        <geom name="wall_bottom" type="box" size="0.552 0.025 0.15" pos="0 0 -0.402" material="concrete_mat" />
+        <geom name="wall_left" type="box" size="0.15 0.025 0.5" pos="-0.402 0 0" material="concrete_mat" 
+              contype="1" conaffinity="1" 
+              solimp="0.9 0.95 0.001" solref="0.002 1" friction="5 5 5" condim="6"/>
+        <geom name="wall_right" type="box" size="0.15 0.025 0.5" pos="0.402 0 0" material="concrete_mat" 
+              contype="1" conaffinity="1" 
+              solimp="0.9 0.95 0.001" solref="0.002 1" friction="5 5 5" condim="6"/>
+        <geom name="wall_top" type="box" size="0.552 0.025 0.15" pos="0 0 0.402" material="concrete_mat" 
+              contype="1" conaffinity="1" 
+              solimp="0.9 0.95 0.001" solref="0.002 1" friction="5 5 5" condim="6"/>
+        <geom name="wall_bottom" type="box" size="0.552 0.025 0.15" pos="0 0 -0.402" material="concrete_mat" 
+              contype="1" conaffinity="1" 
+              solimp="0.9 0.95 0.001" solref="0.002 1" friction="5 5 5" condim="6"/>
 
         <!-- 墙体视觉网格：仅用于显示 -->
         <geom name="wall_visual_mesh" type="mesh" mesh="wall_with_hole"
@@ -177,18 +185,18 @@
             作用：阻止窗户插入过深，形成安装止挡
             尺寸：边缘厚度0.01m，中心开放区域约0.484m x 0.484m
         -->
-        <geom name="wall_back_left" type="box" size="0.01 0.002 0.252" pos="-0.242 -0.03 0" material="frame_mat" rgba="0.9 0.9 0.9 0.1" 
+        <geom name="wall_back_left" type="box" size="0.01 0.01 0.252" pos="-0.242 -0.03 0" material="frame_mat" rgba="0.9 0.9 0.9 0.1" 
               contype="1" conaffinity="1" 
-              solimp="0.9 0.95 0.001" solref="0.01 1" friction="5 5 5" condim="6"/>
-        <geom name="wall_back_right" type="box" size="0.01 0.002 0.252" pos="0.242 -0.03 0" material="frame_mat" rgba="0.9 0.9 0.9 0.1" 
+              solimp="0.9 0.95 0.001" solref="0.002 1" friction="5 5 5" condim="6"/>
+        <geom name="wall_back_right" type="box" size="0.01 0.01 0.252" pos="0.242 -0.03 0" material="frame_mat" rgba="0.9 0.9 0.9 0.1" 
               contype="1" conaffinity="1" 
-              solimp="0.9 0.95 0.001" solref="0.01 1" friction="5 5 5" condim="6"/>
-        <geom name="wall_back_top" type="box" size="0.232 0.002 0.01" pos="0 -0.03 0.242" material="frame_mat" rgba="0.9 0.9 0.9 0.1" 
+              solimp="0.9 0.95 0.001" solref="0.002 1" friction="5 5 5" condim="6"/>
+        <geom name="wall_back_top" type="box" size="0.232 0.01 0.01" pos="0 -0.03 0.242" material="frame_mat" rgba="0.9 0.9 0.9 0.1" 
               contype="1" conaffinity="1" 
-              solimp="0.9 0.95 0.001" solref="0.01 1" friction="5 5 5" condim="6"/>
-        <geom name="wall_back_bottom" type="box" size="0.232 0.002 0.01" pos="0 -0.03 -0.242" material="frame_mat" rgba="0.9 0.9 0.9 0.1" 
+              solimp="0.9 0.95 0.001" solref="0.002 1" friction="5 5 5" condim="6"/>
+        <geom name="wall_back_bottom" type="box" size="0.232 0.01 0.01" pos="0 -0.03 -0.242" material="frame_mat" rgba="0.9 0.9 0.9 0.1" 
               contype="1" conaffinity="1" 
-              solimp="0.9 0.95 0.001" solref="0.01 1" friction="5 5 5" condim="6"/>
+              solimp="0.9 0.95 0.001" solref="0.002 1" friction="5 5 5" condim="6"/>
         <geom name="wall_back_visual" type="box" size="0.252 0.001 0.252" pos="0 -0.03 0" material="frame_mat" rgba="0.9 0.9 0.9 0.05" 
               contype="0" conaffinity="0"/>
         
@@ -330,17 +338,18 @@
           旋转：无旋转（quat="1 0 0 0"），模型已经Z轴向上，直接导入即可
           Z位置说明：根据模型实际尺寸调整，使模型底部接触地面（Z=0）
           模型尺寸：X=0.133m, Y=0.178m, Z=0.253m（高度）
-          用途：存储待安装的窗户（可选功能）
+          用途：存储待安装的窗户
       -->
-      <body name="glass_rack" pos="0.576 -0.5 0.175" quat="1 0 0 0">
+      <body name="glass_rack" pos="0.53 -0.5 0.2" quat="1 0 0 0">
         <!-- 视觉mesh -->
         <geom name="glass_rack_visual" type="mesh" mesh="glass_rack" 
               material="rack_mat"
               contype="0" conaffinity="0"/>
-        <!-- 碰撞几何体：使用mesh进行碰撞检测 -->
+        <!-- 碰撞几何体：已禁用碰撞以避免"空气墙"问题 -->
+        <!-- 注意：MuJoCo的mesh碰撞有精度问题，导致"空气墙"效应，使玻璃无法贴合 -->
+        <!-- 禁用碰撞后，A-frame仅用于视觉展示，不影响窗户放置 -->
         <geom name="glass_rack_collision" type="mesh" mesh="glass_rack" 
-              contype="1" conaffinity="1"
-              solimp="0.9 0.95 0.001" solref="0.01 1" friction="1.0 0.1 0.1"/>
+              contype="0" conaffinity="0"/>
       </body>
     </worldbody>
 
