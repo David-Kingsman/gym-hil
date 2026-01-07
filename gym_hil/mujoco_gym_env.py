@@ -250,7 +250,7 @@ class FrankaGymEnv(MujocoGymEnv):
         x, y, z, rx, ry, rz, grasp_command = action
 
         # Lock rx and rz rotations (only allow ry rotation)
-        rx = 0.0
+        # rx = 0.0
         rz = 0.0
 
         # Set the mocap position (incremental control)
