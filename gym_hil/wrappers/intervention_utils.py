@@ -99,10 +99,14 @@ class InputController:
         Get the current episode end status.
 
         Returns:
-            None if episode should continue, "success" or "failure" otherwise
+            None if episode should continue, "success", "failure", or "rerecord_episode" otherwise
         """
         status = self.episode_end_status
-        self.episode_end_status = None  # Reset after reading
+        # Reset after reading, but only if it's not rerecord_episode
+        # rerecord_episode should persist until the episode actually ends and is processed
+        if status != "rerecord_episode":
+            self.episode_end_status = None
+        # For rerecord_episode, we'll reset it manually after it's been processed in control_loop
         return status
 
     def should_intervene(self):
@@ -326,9 +330,16 @@ class GamepadController(InputController):
                     self.open_gripper_command = True
 
             # Reset episode status on button release
+            # Note: Don't reset rerecord_episode on button release - it should persist until processed
             elif event.type == pygame.JOYBUTTONUP:
-                if event.button in [x_button, a_button, y_button]:
-                    self.episode_end_status = None
+                if event.button == a_button or event.button == y_button:
+                    # Only reset success/failure on button release, not rerecord_episode
+                    if self.episode_end_status != "rerecord_episode":
+                        self.episode_end_status = None
+                elif event.button == x_button:
+                    # X button (rerecord_episode) should not be reset on release
+                    # It will be reset by get_episode_end_status() after being processed
+                    pass
                 elif event.button == lt_button:
                     self.close_gripper_command = False
                 elif event.button == rt_button:
@@ -487,9 +498,16 @@ class GamepadController6DoF(InputController):
                     self.open_gripper_command = True
 
             # Reset episode status on button release
+            # Note: Don't reset rerecord_episode on button release - it should persist until processed
             elif event.type == pygame.JOYBUTTONUP:
-                if event.button in [x_button, a_button, y_button]:
-                    self.episode_end_status = None
+                if event.button == a_button or event.button == y_button:
+                    # Only reset success/failure on button release, not rerecord_episode
+                    if self.episode_end_status != "rerecord_episode":
+                        self.episode_end_status = None
+                elif event.button == x_button:
+                    # X button (rerecord_episode) should not be reset on release
+                    # It will be reset by get_episode_end_status() after being processed
+                    pass
                 elif event.button == lt_button:
                     self.close_gripper_command = False
                 elif event.button == rt_button:

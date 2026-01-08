@@ -504,6 +504,15 @@ class InputsControlWrapper(gym.Wrapper):
         if terminated or truncated:
             # Add success/failure information to info dict
             info["next.success"] = success
+            # Ensure rerecord_episode is in info when episode ends
+            info["rerecord_episode"] = rerecord_episode
+            info["terminate_episode"] = terminate_episode
+            
+            # Reset rerecord_episode status after it's been added to info
+            # This ensures it persists until episode end but gets reset for next episode
+            if rerecord_episode and hasattr(self.controller, 'episode_end_status'):
+                if self.controller.episode_end_status == "rerecord_episode":
+                    self.controller.episode_end_status = None
 
             # Auto reset if configured
             if self.auto_reset:
