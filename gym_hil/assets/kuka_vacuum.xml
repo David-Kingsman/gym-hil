@@ -193,6 +193,8 @@
                       <geom name="col_cup_4" type="cylinder" size="0.025 0.01" pos="-0.085 -0.085 -0.020" class="vacuum_gripper/collision"/>
 
                       <site name="pinch" pos="0 0 -0.020" size="0.003" rgba="1 0 0 0.5"/>
+                      <!-- Docking site for auto-alignment reference -->
+                      <site name="gripper_dock" pos="0 0 0.002" size="0.01" rgba="1 0 0 0.5" type="sphere" group="4"/>
                     </body>
                   </body>
                 </body>

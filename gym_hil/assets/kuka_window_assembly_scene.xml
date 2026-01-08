@@ -75,6 +75,9 @@
       
       <!-- 玻璃架材质：白色 -->
       <material name="rack_mat" rgba="1.0 1.0 1.0 1" shininess="0.1" specular="0.05" reflectance="0"/>
+      
+      <!-- 金属材质：用于A-frame碰撞体，银灰色，高反光 -->
+      <material name="metal_mat" rgba="0.7 0.7 0.75 1" shininess="0.8" specular="0.3" reflectance="0.2"/>
     </asset>
 
     <!-- 关键帧：定义初始状态 -->
@@ -345,13 +348,19 @@
         <geom name="glass_rack_visual" type="mesh" mesh="glass_rack" 
               material="rack_mat"
               contype="0" conaffinity="0"/>
-        <!-- 碰撞几何体：已禁用碰撞以避免"空气墙"问题 -->
-        <!-- 注意：MuJoCo的mesh碰撞有精度问题，导致"空气墙"效应，使玻璃无法贴合 -->
-        <!-- 禁用碰撞后，A-frame仅用于视觉展示，不影响窗户放置 -->
+        <!-- 碰撞几何体：已启用碰撞检测，金属色 -->
+        <!-- 注意：MuJoCo的mesh碰撞可能有精度问题，如果出现"空气墙"效应，可以考虑使用简化的box几何体替代 -->
         <geom name="glass_rack_collision" type="mesh" mesh="glass_rack" 
-              contype="0" conaffinity="0"/>
+              material="metal_mat"
+              contype="1" conaffinity="1"
+              solimp="0.9 0.95 0.001" solref="0.002 1" friction="5 5 5" condim="6"/>
       </body>
     </worldbody>
+
+    <!-- 碰撞排除：禁用玻璃与A-frame之间的碰撞，避免初始位置冲突 -->
+    <contact>
+      <exclude body1="window_body" body2="glass_rack"/>
+    </contact>
 
     <!-- 传感器：用于Python代码读取物体状态 -->
     <sensor>
