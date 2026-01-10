@@ -74,6 +74,16 @@ class KukaWindowAssemblyEnv(FrankaGymEnv):
 
         # 获取窗口插入任务的目标站点ID
         self._target_site_id = mujoco.mj_name2id(self._model, mujoco.mjtObj.mjOBJ_SITE, "target_site")
+        
+        # 获取gripper_dock站点ID（用于自动吸附）
+        try:
+            self._gripper_dock_site_id = mujoco.mj_name2id(self._model, mujoco.mjtObj.mjOBJ_SITE, "gripper_dock")
+        except:
+            self._gripper_dock_site_id = None
+        
+        # 自动吸附相关状态
+        self._window_snapped = False
+        self._snap_distance_threshold = 0.10  # 10cm触发距离（更宽松，更容易触发）
 
         # 任务特定设置
         # 窗口是一个盒子: size[0]是半宽度, size[1]是半长度, size[2]是半厚度
@@ -154,6 +164,9 @@ class KukaWindowAssemblyEnv(FrankaGymEnv):
         # Reset window velocity
         self._data.jnt("window_joint").qvel[:] = 0.0
         
+        # Reset snap state
+        self._window_snapped = False
+        
         mujoco.mj_forward(self._model, self._data)
 
         # Cache the initial window height (center of window)
@@ -161,14 +174,116 @@ class KukaWindowAssemblyEnv(FrankaGymEnv):
 
         obs = self._compute_observation()
         return obs, {}
+    
+    def _snap_window_to_gripper(self):
+        """当gripper开启且玻璃足够近时，自动对齐玻璃到gripper中心"""
+        # 获取gripper位置
+        if self._gripper_dock_site_id is not None:
+            gripper_pos = self._data.site(self._gripper_dock_site_id).xpos.copy()
+            gripper_mat = self._data.site(self._gripper_dock_site_id).xmat.reshape(3, 3).copy()
+        else:
+            try:
+                attachment_site_id = mujoco.mj_name2id(self._model, mujoco.mjtObj.mjOBJ_SITE, "attachment_site")
+                gripper_pos = self._data.site(attachment_site_id).xpos.copy()
+                gripper_mat = self._data.site(attachment_site_id).xmat.reshape(3, 3).copy()
+            except:
+                return
+        
+        # 计算目标位置：玻璃表面对齐到gripper中心（考虑玻璃厚度）
+        gripper_z_axis = gripper_mat[:, 2]
+        target_pos = gripper_pos - (self._window_thickness + 0.025) * gripper_z_axis
+        target_mat = gripper_mat
+        
+        # 转换为四元数
+        target_quat = R.from_matrix(target_mat).as_quat()
+        target_quat_mujoco = np.array([target_quat[3], target_quat[0], target_quat[1], target_quat[2]])
+        
+        # 设置玻璃位置和姿态
+        window_joint_id = mujoco.mj_name2id(self._model, mujoco.mjtObj.mjOBJ_JOINT, "window_joint")
+        qpos_adr = self._model.jnt_qposadr[window_joint_id]
+        qvel_adr = self._model.jnt_dofadr[window_joint_id]
+        
+        self._data.qpos[qpos_adr:qpos_adr+3] = target_pos
+        self._data.qpos[qpos_adr+3:qpos_adr+7] = target_quat_mujoco
+        self._data.qvel[qvel_adr:qvel_adr+6] = 0.0
+        
+        # 重置body速度和加速度
+        window_body_id = mujoco.mj_name2id(self._model, mujoco.mjtObj.mjOBJ_BODY, "window_body")
+        self._data.cvel[window_body_id][:3] = 0.0
+        self._data.cvel[window_body_id][3:6] = 0.0
+        self._data.cacc[window_body_id][:3] = 0.0
+        self._data.cacc[window_body_id][3:6] = 0.0
 
     def step(
         self, action: np.ndarray
     ) -> Tuple[Dict[str, np.ndarray], float, bool, bool, Dict[str, Any]]:
         """Take a step in the environment."""
+        vacuum_command = action[-1]
+        
+        # 自动吸附逻辑：当gripper开启时，如果玻璃足够近，自动对齐
+        if vacuum_command > 0.5:
+            mujoco.mj_forward(self._model, self._data)
+            window_pos = self._data.body("window_body").xpos
+            window_quat = self._data.body("window_body").xquat  # [w, x, y, z]
+            
+            # 获取吸盘位置和姿态 - 优先使用gripper_dock，否则使用attachment_site
+            gripper_pos = None
+            gripper_mat = None
+            if self._gripper_dock_site_id is not None:
+                try:
+                    gripper_pos = self._data.site(self._gripper_dock_site_id).xpos.copy()
+                    gripper_mat = self._data.site(self._gripper_dock_site_id).xmat.reshape(3, 3).copy()
+                except:
+                    pass
+            
+            if gripper_pos is None:
+                try:
+                    attachment_site_id = mujoco.mj_name2id(self._model, mujoco.mjtObj.mjOBJ_SITE, "attachment_site")
+                    gripper_pos = self._data.site(attachment_site_id).xpos.copy()
+                    gripper_mat = self._data.site(attachment_site_id).xmat.reshape(3, 3).copy()
+                except Exception as e:
+                    # Fallback: 使用真空吸盘的pinch site
+                    try:
+                        pinch_site_id = mujoco.mj_name2id(self._model, mujoco.mjtObj.mjOBJ_SITE, "pinch")
+                        gripper_pos = self._data.site(pinch_site_id).xpos.copy()
+                        gripper_mat = self._data.site(pinch_site_id).xmat.reshape(3, 3).copy()
+                    except:
+                        print(f"[吸附警告] 无法获取吸盘位置: {e}")
+                        gripper_pos = window_pos.copy()  # Fallback
+                        gripper_mat = np.eye(3)
+            
+            # 简化距离计算：直接使用欧氏距离（body中心到site位置）
+            dist = np.linalg.norm(window_pos - gripper_pos)
+            
+            # 调试日志（每10步打印一次）
+            if not hasattr(self, '_snap_debug_counter'):
+                self._snap_debug_counter = 0
+            self._snap_debug_counter += 1
+            if self._snap_debug_counter % 10 == 0:
+                print(f"[吸附调试] vacuum_command={vacuum_command:.2f}, dist={dist*100:.2f}cm, "
+                      f"threshold={self._snap_distance_threshold*100:.2f}cm, "
+                      f"snapped={self._window_snapped}, "
+                      f"gripper_pos={gripper_pos}, window_pos={window_pos}")
+            
+            if self._window_snapped or dist < self._snap_distance_threshold:
+                if not self._window_snapped:
+                    print(f"[吸附触发] 距离 {dist*100:.2f}cm < 阈值 {self._snap_distance_threshold*100:.2f}cm，开始吸附")
+                self._window_snapped = True
+                self._snap_window_to_gripper()
+        else:
+            self._window_snapped = False
+        
         # Apply the action to the robot (use default control parameters, same as pick plate)
         # Removed custom damping_ratio=10 which caused sluggish/rigid control when gripper is on
         self.apply_action(action)
+        
+        # 如果已吸附，清除玻璃的约束力，防止影响机械臂控制
+        if self._window_snapped:
+            mujoco.mj_forward(self._model, self._data)
+            window_joint_id = mujoco.mj_name2id(self._model, mujoco.mjtObj.mjOBJ_JOINT, "window_joint")
+            qvel_adr = self._model.jnt_dofadr[window_joint_id]
+            self._data.qfrc_constraint[qvel_adr:qvel_adr+6] = 0.0
+            self._data.qfrc_applied[qvel_adr:qvel_adr+6] = 0.0
         
         obs = self._compute_observation()
         rew = self._compute_reward()

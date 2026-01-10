@@ -226,7 +226,8 @@
     <motor name="actuator5" joint="joint5" ctrlrange="-12 12"/>
     <motor name="actuator6" joint="joint6" ctrlrange="-12 12"/>
     <motor name="actuator7" joint="joint7" ctrlrange="0 0"/>
-    <adhesion name="fingers_actuator" body="vacuum_gripper" ctrlrange="0 1" gain="200"/>
+    <!-- 增加吸附力：gain从200提高到300，确保更稳定的吸附 -->
+    <adhesion name="fingers_actuator" body="vacuum_gripper" ctrlrange="0 1" gain="300"/>
   </actuator>
 
   <sensor>
