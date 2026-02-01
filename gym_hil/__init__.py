@@ -70,6 +70,13 @@ register(
     max_episode_steps=100,
 )
 
+# KUKA Random Window Assembly Environment (no A-frame, random position on ground)
+register(
+    id="gym_hil/KukaRandomWindowAssemblyBase-v0",  # KUKA iiwa14 random window assembly with vacuum gripper base environment
+    entry_point="gym_hil.envs:RandomKukaWindowAssemblyEnv",
+    max_episode_steps=100,
+)
+
 # Register the viewer wrapper
 register(
     id="gym_hil/PandaPickCubeViewer-v0",
@@ -209,6 +216,24 @@ register(
         "pitch_step_size": 0.03,  # Step size for pitch rotation (radians) - ~5.7 degrees for smoother control
         "yaw_step_size": 0.03,  # Step size for yaw rotation (radians) - ~5.7 degrees for smoother control
         "reward_type": "sparse",  # Use dense reward for better feedback during training
+    },
+)
+
+register(
+    id="gym_hil/KukaRandomWindowAssemblyGamepad6DoF-v0",
+    entry_point="gym_hil.wrappers.factory:make_env",
+    max_episode_steps=600,  # 60 seconds @ 10 FPS - increased for window assembly task (pick, rotate, align, insert)
+    kwargs={
+        "env_id": "gym_hil/KukaRandomWindowAssemblyBase-v0",  # Use the KUKA random window assembly base environment
+        "use_viewer": True,
+        "use_inputs_control": True,
+        "use_gamepad": True,
+        "use_gamepad_6dof": True,  # Enable 6-DoF gamepad control (xyz + rx ry rz)
+        "use_gripper": True,  # Vacuum gripper control
+        "roll_step_size": 0.03,  # Step size for roll rotation (radians) - ~5.7 degrees for smoother control
+        "pitch_step_size": 0.03,  # Step size for pitch rotation (radians) - ~5.7 degrees for smoother control
+        "yaw_step_size": 0.03,  # Step size for yaw rotation (radians) - ~5.7 degrees for smoother control
+        "reward_type": "sparse",  # Use sparse reward
     },
 )
 

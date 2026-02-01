@@ -25,7 +25,8 @@ from gym_hil.mujoco_gym_env import FrankaGymEnv, GymRenderingSpec
 from scipy.spatial.transform import Rotation as R
 
 # KUKA iiwa14 home position 复位起始位置  
-_KUKA_HOME = np.asarray((0, 0.785398, 0, -1.5708, 0, 0.785398, 0))
+# _KUKA_HOME = np.asarray((0, 0.785398, 0, -1.5708, 0, 0.785398, 0))
+_KUKA_HOME = np.asarray((0, 0.4379366068889045, 0, -1.6874211207460075, 0, 1.016238274524705, 0))
 # _KUKA_HOME = np.asarray((-0.000001, 0.669889, 0.000001, -1.808026, -0.000001, 0.663681, -0.000002))
 # Joint positions: np.asarray((-0.000001, 0.669889, 0.000001, -1.808026, -0.000001, 0.663681, -0.000002))
 
@@ -148,6 +149,11 @@ class KukaWindowAssemblyEnv(FrankaGymEnv):
 
         # Reset the robot to home position
         self.reset_robot()
+        
+        # Print current robot joint positions (real-time home position)
+        # mujoco.mj_forward(self._model, self._data)
+        # current_qpos = self._data.qpos[self._panda_dof_ids]
+        # print(f"_KUKA_HOME = np.asarray({tuple(current_qpos)})")
 
         # Sample a new window position
         if self._random_window_position:
@@ -214,6 +220,10 @@ class KukaWindowAssemblyEnv(FrankaGymEnv):
         self._data.cacc[window_body_id][:3] = 0.0
         self._data.cacc[window_body_id][3:6] = 0.0
 
+        # 更新物理状态，避免位置突然变化导致物理不连续
+        # 这很重要：如果不调用mj_forward，物理引擎在mj_step时计算接触力会使用旧的状态，导致跳变
+        mujoco.mj_forward(self._model, self._data)
+
     def step(
         self, action: np.ndarray
     ) -> Tuple[Dict[str, np.ndarray], float, bool, bool, Dict[str, Any]]:
@@ -248,7 +258,7 @@ class KukaWindowAssemblyEnv(FrankaGymEnv):
                         gripper_pos = self._data.site(pinch_site_id).xpos.copy()
                         gripper_mat = self._data.site(pinch_site_id).xmat.reshape(3, 3).copy()
                     except:
-                        print(f"[吸附警告] 无法获取吸盘位置: {e}")
+                        # print(f"[吸附警告] 无法获取吸盘位置: {e}")
                         gripper_pos = window_pos.copy()  # Fallback
                         gripper_mat = np.eye(3)
             
@@ -260,22 +270,135 @@ class KukaWindowAssemblyEnv(FrankaGymEnv):
                 self._snap_debug_counter = 0
             self._snap_debug_counter += 1
             if self._snap_debug_counter % 10 == 0:
-                print(f"[吸附调试] vacuum_command={vacuum_command:.2f}, dist={dist*100:.2f}cm, "
-                      f"threshold={self._snap_distance_threshold*100:.2f}cm, "
-                      f"snapped={self._window_snapped}, "
-                      f"gripper_pos={gripper_pos}, window_pos={window_pos}")
+                # print(f"[吸附调试] vacuum_command={vacuum_command:.2f}, dist={dist*100:.2f}cm, "
+                #       f"threshold={self._snap_distance_threshold*100:.2f}cm, "
+                #       f"snapped={self._window_snapped}, "
+                #       f"gripper_pos={gripper_pos}, window_pos={window_pos}")
+                pass
             
             if self._window_snapped or dist < self._snap_distance_threshold:
                 if not self._window_snapped:
-                    print(f"[吸附触发] 距离 {dist*100:.2f}cm < 阈值 {self._snap_distance_threshold*100:.2f}cm，开始吸附")
+                    # print(f"[吸附触发] 距离 {dist*100:.2f}cm < 阈值 {self._snap_distance_threshold*100:.2f}cm，开始吸附")
+                    pass
                 self._window_snapped = True
                 self._snap_window_to_gripper()
         else:
             self._window_snapped = False
         
-        # Apply the action to the robot (use default control parameters, same as pick plate)
         # Removed custom damping_ratio=10 which caused sluggish/rigid control when gripper is on
+        
+        # Get current window position to detect insertion phase
+        mujoco.mj_forward(self._model, self._data)
+        window_pos = self._data.sensor("window_pos").data
+        
+        # Detect insertion phase: window X position >= 0.75 means inserting
+        is_inserting = window_pos[0] >= 0.75  # Window X >= 0.75 confirms insertion phase
+        
+        # During insertion phase: lock Y position (left-right movement) by modifying cartesian_bounds
+        # Save original bounds and restore after apply_action
+        original_bounds = self._cartesian_bounds.copy()
+        if is_inserting:
+            # Lock Y position at 0.0 (prevent left-right movement, force Y=0)
+            self._cartesian_bounds[0][1] = 0.0  # min Y = 0.0
+            self._cartesian_bounds[1][1] = 0.0  # max Y = 0.0
+        
+        action = action.copy()  # Make a copy to avoid modifying the original
+        
+        # Get current orientation
+        current_quat = self._data.mocap_quat[0].copy()  # [w, x, y, z]
+        current_rot = R.from_quat([current_quat[1], current_quat[2], current_quat[3], current_quat[0]])  # [x, y, z, w]
+        current_euler = current_rot.as_euler('xyz', degrees=False)
+        current_rx = current_euler[0]
+        current_ry = current_euler[1]
+        current_rz = current_euler[2]  # rz should always be 0 (locked in XML)
+        
+        if is_inserting:
+            # During insertion phase: force rx = 0 and Y = 0
+            # Calculate delta rotation needed to get rx = 0, preserving ry and rz
+            target_rot = R.from_euler('xyz', [0.0, current_ry, current_rz], degrees=False)
+            rot_delta = target_rot * current_rot.inv()
+            delta_euler = rot_delta.as_euler('xyz', degrees=False)
+            
+            # Apply delta to force rx = 0
+            action[3] = delta_euler[0]  # Force rx delta to achieve rx = 0
+            # action[4] (ry_delta) remains unchanged, passed through directly
+        else:
+            # Normal phase: Limit rx rotation range (0-90 degrees) only
+            # ry is allowed to exceed 90 degrees (no limit, no processing to avoid gimbal lock issues)
+            # IMPORTANT: When ry is near ±90 degrees, skip rx limiting to avoid gimbal lock and unexpected rotations
+            rx_max = np.pi / 2  # Maximum accumulated rx angle (90 degrees)
+            rx_min = 0  # Minimum accumulated rx angle (0 degrees)
+            
+            rx_delta = action[3]  # Get the delta rotation around X-axis
+            
+            # If ry is close to ±90 degrees (within 10 degrees), skip rx limiting to avoid gimbal lock
+            # This prevents unexpected rotations during insertion when window is vertical
+            if abs(abs(current_ry) - np.pi / 2) < np.deg2rad(10):  # Within 10 degrees of ±90
+                # Too close to gimbal lock, skip rx limiting and let both rx and ry pass through
+                # This prevents unexpected rotations during insertion
+                pass  # action[3] and action[4] remain unchanged, pass through directly
+            else:
+                # Safe to check rx: apply rx delta and limit accumulated rx
+                delta_rot_rx = R.from_euler('xyz', [rx_delta, 0, 0], degrees=False)
+                new_rot_rx = delta_rot_rx * current_rot
+                
+                # Convert to Euler angles to check rx only
+                new_euler_rx = new_rot_rx.as_euler('xyz', degrees=False)
+                new_rx = new_euler_rx[0]
+                
+                # Clip only rx to the allowed range
+                new_rx_clipped = np.clip(new_rx, rx_min, rx_max)
+                
+                # Compute the delta rotation needed to go from current to target (rx only, preserve current ry and rz)
+                target_rot_rx = R.from_euler('xyz', [new_rx_clipped, current_ry, current_rz], degrees=False)
+                rot_delta_rx = target_rot_rx * current_rot.inv()
+                delta_euler_rx = rot_delta_rx.as_euler('xyz', degrees=False)
+                
+                # Apply clipped rx delta
+                action[3] = delta_euler_rx[0]  # Clipped rx delta
+                # action[4] (ry_delta) is passed through directly without any processing
+        
         self.apply_action(action)
+        
+        # Restore original cartesian_bounds after apply_action
+        if is_inserting:
+            self._cartesian_bounds = original_bounds
+        
+        # # 实时打印robot arm关节位置（每10步打印一次）
+        # if not hasattr(self, '_robot_arm_print_counter'):
+        #     self._robot_arm_print_counter = 0
+        # self._robot_arm_print_counter += 1
+        # if self._robot_arm_print_counter % 10 == 0:
+        #     mujoco.mj_forward(self._model, self._data)
+        #     # 获取机器人关节位置
+        #     current_qpos = self._data.qpos[self._panda_dof_ids]
+        #     print(f"_KUKA_HOME = np.asarray({tuple(current_qpos)})")
+        
+        # 实时打印window是否垂直、是否平行于地面（每10步打印一次）
+        if not hasattr(self, '_window_orientation_print_counter'):
+            self._window_orientation_print_counter = 0
+        self._window_orientation_print_counter += 1
+        if self._window_orientation_print_counter % 10 == 0:
+            mujoco.mj_forward(self._model, self._data)
+            # 获取window的四元数
+            window_quat = self._data.sensor("window_quat").data  # [w, x, y, z] MuJoCo格式
+            # 转换为旋转矩阵
+            window_mat = R.from_quat([window_quat[1], window_quat[2], window_quat[3], window_quat[0]]).as_matrix()
+            window_z_axis = window_mat[:, 2]  # Window的Z轴（法向量，垂直于玻璃表面）
+            window_x_axis = window_mat[:, 0]  # Window的X轴（宽度方向）
+            
+            # 判断是否平行于地面：Z轴与垂直方向[0,0,1]的点积
+            # dot接近0表示垂直（Z轴水平），dot接近±1表示平行于地面（Z轴垂直）
+            z_dot_up = np.dot(window_z_axis, np.array([0, 0, 1]))
+            is_parallel_to_ground = abs(z_dot_up) > 0.9  # 阈值：接近±1表示平行于地面
+            
+            # 判断是否垂直（与墙对齐）：X轴与目标法线[-1,0,0]的对齐度
+            target_normal = np.array([-1, 0, 0])
+            x_alignment = abs(np.dot(window_x_axis, target_normal))
+            is_vertical = x_alignment > 0.9  # 阈值：X轴与目标法线对齐度>0.9表示垂直
+            
+            print(f"[Window Orientation] 垂直(与墙对齐)={is_vertical} (X-axis对齐度={x_alignment:.3f}), "
+                  f"平行于地面={is_parallel_to_ground} (Z-axis垂直分量={z_dot_up:.3f})")
         
         # 如果已吸附，清除玻璃的约束力，防止影响机械臂控制
         if self._window_snapped:
@@ -452,11 +575,12 @@ class KukaWindowAssemblyEnv(FrankaGymEnv):
         
         # Debug: if position is very close but alignment is low, or if window is tilted, print warning
         if pos_dist < 0.05 and (alignment < 0.5 or not is_properly_vertical):
-            print(f"[Alignment Warning] pos_dist={pos_dist*1000:.2f}mm is close, alignment={alignment:.4f}, is_properly_vertical={is_properly_vertical}")
-            print(f"  window_x_axis={window_x_axis}, window_y_axis={window_y_axis}, window_z_axis={window_z_axis}")
-            print(f"  z_is_horizontal={z_is_horizontal}, z_alignment={z_alignment:.4f}")
-            print(f"  x_axis_x={x_axis_x_component:.4f}, y_axis_x={y_axis_x_component:.4f}, tilt_penalty={tilt_penalty:.4f}")
-            print(f"  x_alignment={x_alignment:.4f} (X-axis dot with target_normal), z_dot_up={abs(np.dot(window_z_axis, np.array([0,0,1]))):.4f} (Z-axis dot with [0,0,1])")
+            # print(f"[Alignment Warning] pos_dist={pos_dist*1000:.2f}mm is close, alignment={alignment:.4f}, is_properly_vertical={is_properly_vertical}")
+            # print(f"  window_x_axis={window_x_axis}, window_y_axis={window_y_axis}, window_z_axis={window_z_axis}")
+            # print(f"  z_is_horizontal={z_is_horizontal}, z_alignment={z_alignment:.4f}")
+            # print(f"  x_axis_x={x_axis_x_component:.4f}, y_axis_x={y_axis_x_component:.4f}, tilt_penalty={tilt_penalty:.4f}")
+            # print(f"  x_alignment={x_alignment:.4f} (X-axis dot with target_normal), z_dot_up={abs(np.dot(window_z_axis, np.array([0,0,1]))):.4f} (Z-axis dot with [0,0,1])")
+            pass
         
         return window_pos, target_pos, pos_dist, alignment
 
@@ -650,16 +774,17 @@ class KukaWindowAssemblyEnv(FrankaGymEnv):
                 target_normal = np.array([-1, 0, 0])
                 dot_product = np.dot(window_normal, target_normal)
                 is_success_sparse = (pos_dist < 0.04 and alignment > 0.80)
-                print(f"[Reward Debug] pos_dist={pos_dist*1000:.2f}mm (need <40mm), alignment={alignment:.4f} (need >0.80), sparse_success={is_success_sparse}")
-                print(f"  window_pos={window_pos}, target_pos={target_pos}, diff={(window_pos-target_pos)*1000}")
-                print(f"  window_normal={window_normal}, target_normal={target_normal}, dot={dot_product:.4f}")
+                # print(f"[Reward Debug] pos_dist={pos_dist*1000:.2f}mm (need <40mm), alignment={alignment:.4f} (need >0.80), sparse_success={is_success_sparse}")
+                # print(f"  window_pos={window_pos}, target_pos={target_pos}, diff={(window_pos-target_pos)*1000}")
+                # print(f"  window_normal={window_normal}, target_normal={target_normal}, dot={dot_product:.4f}")
                 # Calculate X/Y axis vertical components for debug
                 x_axis_vertical = abs(np.dot(window_mat[:, 0], np.array([0, 0, 1])))
                 y_axis_vertical = abs(np.dot(window_mat[:, 1], np.array([0, 0, 1])))
                 # Recalculate x/y axis vertical components for debug (in case window_mat was recalculated)
                 debug_x_vertical = abs(np.dot(window_mat[:, 0], np.array([0, 0, 1])))
                 debug_y_vertical = abs(np.dot(window_mat[:, 1], np.array([0, 0, 1])))
-                print(f"  dense_reward={reward:.4f}, r_reach={r_reach:.4f}, r_lift={r_lift:.4f}, r_rotate={r_rotate:.4f} (z_vertical={z_vertical_component:.4f}, x_vertical={debug_x_vertical:.4f}, y_vertical={debug_y_vertical:.4f}, vacuum_on={vacuum_on}), r_align={r_align:.4f}, r_insert={r_insert:.4f}")
+                # print(f"  dense_reward={reward:.4f}, r_reach={r_reach:.4f}, r_lift={r_lift:.4f}, r_rotate={r_rotate:.4f} (z_vertical={z_vertical_component:.4f}, x_vertical={debug_x_vertical:.4f}, y_vertical={debug_y_vertical:.4f}, vacuum_on={vacuum_on}), r_align={r_align:.4f}, r_insert={r_insert:.4f}")
+                pass
             
             return float(np.clip(reward, -20.0, 1.0))
         else:
@@ -675,12 +800,35 @@ class KukaWindowAssemblyEnv(FrankaGymEnv):
                 window_normal = window_mat[:, 2]
                 target_normal = np.array([-1, 0, 0])
                 dot_product = np.dot(window_normal, target_normal)
-                print(f"[Reward Debug] pos_dist={pos_dist*1000:.2f}mm (need <30mm), alignment={alignment:.4f} (need >0.90), success={is_success}")
-                print(f"  window_pos={window_pos}, target_pos={target_pos}, diff={(window_pos-target_pos)*1000}")
-                print(f"  window_normal={window_normal}, target_normal={target_normal}, dot={dot_product:.4f}")
+                # print(f"[Reward Debug] pos_dist={pos_dist*1000:.2f}mm (need <30mm), alignment={alignment:.4f} (need >0.90), success={is_success}")
+                # print(f"  window_pos={window_pos}, target_pos={target_pos}, diff={(window_pos-target_pos)*1000}")
+                # print(f"  window_normal={window_normal}, target_normal={target_normal}, dot={dot_product:.4f}")
+                pass
             
             return 1.0 if is_success else 0.0
 
+    def _is_attached(self) -> bool:
+        """Check if the window is attached to the plate surface (but not fully inserted).
+        
+        Attached condition (relaxed compared to full insertion):
+        - Window is close to slot front surface (within 5cm from slot front)
+        - Window is reasonably aligned (normal aligned with wall normal, >85% alignment)
+        - Window is on the correct side (X position >= slot_front_x - 0.05)
+        """
+        # Get window state
+        window_pos, target_pos, pos_dist, alignment = self._get_window_state()
+        
+        # Check if window is close to slot front surface
+        wall_x = 0.9
+        slot_front_x = wall_x - 0.015  # Slot front surface (frame is 0.015m thick)
+        x_dist_to_front = slot_front_x - window_pos[0]
+        
+        # Attached: window is within 5cm of slot front surface and reasonably aligned
+        is_near_front = x_dist_to_front <= 0.05 and window_pos[0] >= slot_front_x - 0.05
+        is_aligned = alignment > 0.85  # Relaxed alignment threshold
+        
+        return is_near_front and is_aligned
+    
     def _is_success(self) -> bool:
         """Check if the window is successfully inserted into the wall slot.
         

@@ -11,6 +11,7 @@ from gym_hil.envs.panda_pick_gym_ft_env import PandaPickCubeGymFtEnv
 from gym_hil.envs.panda_pick_plate_gym_env import PandaPickPlateGymEnv
 from gym_hil.envs.kuka_pick_plate_gym_env import KukaPickPlateGymEnv
 from gym_hil.envs.kuka_window_assembly_env import KukaWindowAssemblyEnv
+from gym_hil.envs.random_kuka_window_assembly_env import RandomKukaWindowAssemblyEnv
 from gym_hil.wrappers.hil_wrappers import (
     DEFAULT_EE_STEP_SIZE,
     EEActionWrapper,
@@ -177,6 +178,8 @@ def make_env(
         env = KukaPickPlateGymEnv(**kwargs)
     elif env_id == "gym_hil/KukaPickWindowBase-v0":
         env = KukaWindowAssemblyEnv(**kwargs)
+    elif env_id == "gym_hil/KukaRandomWindowAssemblyBase-v0":
+        env = RandomKukaWindowAssemblyEnv(**kwargs)
     else:
         raise ValueError(f"Environment ID {env_id} not supported")
 

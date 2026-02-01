@@ -162,7 +162,7 @@
                     <site name="joint7"/>
                     <geom class="visual" mesh="link_7"/>
                     <geom class="collision" size="0.06" pos="0 0 0.001"/>
-                    <site name="attachment_site" pos="0 0 0.045"/>
+                    <site name="attachment_site" pos="0 0 0.045" size="0.001" rgba="1 0 0 0"/>
                     <!-- Wrist camera for visual feedback -->
                     <camera name="handcam_depth" pos="-0.05 0 0" fovy="62" quat="0 1 -1 0"/>
                     <!-- <camera name="handcam_rgb" pos="-0.05 0.015 0" fovy="42.5" quat="0 1 -1 0"/> -->
@@ -192,9 +192,9 @@
                       <geom name="col_cup_3" type="cylinder" size="0.025 0.01" pos="-0.085 0.085 -0.020" class="vacuum_gripper/collision"/>
                       <geom name="col_cup_4" type="cylinder" size="0.025 0.01" pos="-0.085 -0.085 -0.020" class="vacuum_gripper/collision"/>
 
-                      <site name="pinch" pos="0 0 -0.020" size="0.003" rgba="1 0 0 0.5"/>
+                      <site name="pinch" pos="0 0 -0.020" size="0.003" rgba="1 0 0 0"/>
                       <!-- Docking site for auto-alignment reference -->
-                      <site name="gripper_dock" pos="0 0 0.002" size="0.01" rgba="1 0 0 0.5" type="sphere" group="4"/>
+                      <site name="gripper_dock" pos="0 0 0.002" size="0.01" rgba="1 0 0 0" type="sphere" group="4"/>
                     </body>
                   </body>
                 </body>
