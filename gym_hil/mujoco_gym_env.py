@@ -177,6 +177,9 @@ class FrankaGymEnv(MujocoGymEnv):
         # Initialize renderer
         self._viewer = mujoco.Renderer(self.model, height=render_spec.height, width=render_spec.width)
         self._viewer.render()
+        # Lazy high-res renderer for video (avoid 128x128 upscale blur)
+        self._viewer_hires: Optional[mujoco.Renderer] = None
+        self._viewer_hires_size: tuple[int, int] = (0, 0)
 
     def _setup_observation_space(self):
         """Setup the observation space for the Franka environment."""
@@ -377,6 +380,33 @@ class FrankaGymEnv(MujocoGymEnv):
             self._viewer.update_scene(self.data, camera=cam_id)
             rendered_frames.append(self._viewer.render())
         return rendered_frames
+
+    def render_camera(
+        self, camera_name: str, width: int | None = None, height: int | None = None
+    ) -> np.ndarray:
+        """Render a single frame from the given camera name (e.g. 'front', 'track', 'handcam_rgb').
+        Use this for custom eval video views. If the name is not found, falls back to the first camera.
+        When width/height are given (e.g. 1280, 720), uses a high-res renderer for sharper video.
+        """
+        try:
+            cam_id = mujoco.mj_name2id(self._model, mujoco.mjtObj.mjOBJ_CAMERA, camera_name)
+        except Exception:
+            cam_id = self.camera_id[0]
+        default_size = (self._render_specs.width, self._render_specs.height)
+        if width is not None and height is not None and (width, height) != default_size:
+            # Use or create high-res renderer for video
+            if self._viewer_hires is None or self._viewer_hires_size != (width, height):
+                if self._viewer_hires is not None and hasattr(self._viewer_hires, "close"):
+                    try:
+                        self._viewer_hires.close()
+                    except Exception:
+                        pass
+                self._viewer_hires = mujoco.Renderer(self.model, height=height, width=width)
+                self._viewer_hires_size = (width, height)
+            self._viewer_hires.update_scene(self.data, camera=cam_id)
+            return self._viewer_hires.render()
+        self._viewer.update_scene(self.data, camera=cam_id)
+        return self._viewer.render()
 
     def get_gripper_pose(self):
         """Get the current pose of the gripper.

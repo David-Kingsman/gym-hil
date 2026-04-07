@@ -1,0 +1,180 @@
+<?xml version="1.0" ?>
+<!--
+  AUTO-GENERATED OOD (full scene, A-frame). Regenerate: scripts/generate_kuka_window_ood_scene_xml.py --all
+  Panel: 0.395×0.395 m (nominal 0.4×0.4 m (Exp A full)) | clearance/side: 0.0045 m | ox=0.202000 oz=0.202000
+  window Z: win_z=0.273000 m (base 0.273000 + dz=0.000000 larger-panel lift)
+-->
+<mujoco model="kuka_window_assembly_scene_full_ood">
+    <include file="kuka_vacuum.xml"/>
+    <compiler texturedir="images"/>
+    <option timestep=".001" noslip_iterations="50" noslip_tolerance="0" impratio="100" cone="elliptic"/>
+    <statistic center="0.4 0 0.4" extent=".8"/>
+    <visual>
+      <headlight diffuse=".4 .4 .4" ambient=".5 .5 .5"/>
+      <global azimuth="160" elevation="-20" offheight="512" offwidth="512"/>
+      <quality offsamples="8"/>
+    </visual>
+    <asset>
+      <mesh name="wall_with_hole" file="meshes/wall_with_hole_thick.obj" scale="0.801587 1 0.801587"/>
+      <mesh name="glass_rack" file="meshes/A_frame_glass_rack/object_1.obj" scale="0.6 0.6 0.6"/>
+      <texture name="concrete_tex" type="2d" file="concrete.png"/>
+      <texture name="skybox" type="skybox" gridsize="3 4" gridlayout=".U..LFRB.D.." file="dawn.png"/>
+      <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1=".1 .2 .3" rgb2=".2 .3 .4"/>
+      <texture name="concrete_floor_tex" type="2d" file="white_marble_tile2.png"/>
+      <material name="concrete_mat" texture="concrete_tex" texrepeat="3 3" texuniform="false" reflectance="0.05" shininess="0.05" specular="0.05"/>
+      <material name="grid" texture="grid" texrepeat="2 2" texuniform="true" reflectance="0"/>
+      <material name="concrete_floor_mat" texture="concrete_floor_tex" texrepeat="4 4" texuniform="true" reflectance="0" shininess="0" specular="0"/>
+      <material name="glass_mat" rgba="0.7 0.85 1.0 0.2" shininess="0.2" reflectance="0.1" specular="0.15"/>
+      <material name="frame_mat" rgba="0.2 0.2 0.2 1" shininess="0.1"/>
+      <material name="window_frame_mat" rgba="0.6 0.3 0.2 1" shininess="0.3" reflectance="0.2"/>
+      <material name="rack_mat" rgba="1.0 1.0 1.0 1" shininess="0.1" specular="0.05" reflectance="0"/>
+      <material name="metal_mat" rgba="0.7 0.7 0.75 1" shininess="0.8" specular="0.3" reflectance="0.2"/>
+    </asset>
+    <keyframe>
+        <key name="home" qpos="0 0.785398 0 -1.5708 0 0.785398 0 0.514000 -0.432000 0.273000 0.786852 -0.617125 0.003272 0.003239"/>
+    </keyframe>
+
+    <worldbody>
+      <camera name="front" pos="-0.130 0.970 0.630" quat="0.283195 0.191929 -0.548091 -0.763256" fovy="50"/>
+      <camera name="track" pos="-0.130 -0.800 0.900" quat="0.832262 0.448649 -0.162592 -0.282167" fovy="50"/>
+      <light pos="0 0 3" dir="0 0 -1" diffuse="1 1 1" specular=".3 .3 .3"/>
+      <light pos="0 -.5 .4" mode="targetbodycom" target="window_body" diffuse=".8 .8 .8" specular=".3 .3 .3"/>
+      <geom name="floor" size="3 3 0.01" type="plane" material="concrete_floor_mat"
+            rgba="0.4 0.4 0.4 1"
+            contype="1" conaffinity="1"
+            solimp="0.99 0.99 0.01" solref="0.002 1" friction="5 5 5"/>
+      
+      <body name="window_body" pos="0.532000 -0.432000 0.273000" quat="0.786852 -0.617125 0.003272 0.003239">
+        <freejoint name="window_joint"/>
+        <geom name="window_collision" type="box" size="0.197500 0.197500 0.005" mass="0.063677" material="glass_mat"
+              contype="1" conaffinity="1" priority="1"
+              solimp="0.9 0.95 0.001" solref="0.01 1" friction="5 5 5" condim="6"/>
+        <geom name="visual_frame_top" type="box" size="0.197500 0.02 0.004" pos="0 0.177500 0.004" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <geom name="visual_frame_bottom" type="box" size="0.197500 0.02 0.004" pos="0 -0.177500 0.004" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <geom name="visual_frame_left" type="box" size="0.02 0.197500 0.004" pos="-0.177500 0 0.004" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <geom name="visual_frame_right" type="box" size="0.02 0.197500 0.004" pos="0.177500 0 0.004" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <geom name="visual_glass" type="box" size="0.157500 0.157500 0.001" pos="0 0 0.003" material="glass_mat" rgba="0.7 0.85 1.0 0.2" contype="0" conaffinity="0"/>
+        <site name="window_grasp_site" pos="0 0 0" size="0.02" rgba="1 0 0 0"/>
+      </body>
+
+      
+      <body name="facade_wall" pos="0.9 0 0.4" quat="0.707 0 0 0.707">
+        
+        <geom name="wall_left" type="box" size="0.15 0.025 0.5" pos="-0.352000 0 0" material="concrete_mat"
+              contype="1" conaffinity="1"
+              solimp="0.9 0.95 0.001" solref="0.002 1" friction="5 5 5" condim="6" />
+        <geom name="wall_right" type="box" size="0.15 0.025 0.5" pos="0.352000 0 0" material="concrete_mat"
+              contype="1" conaffinity="1"
+              solimp="0.9 0.95 0.001" solref="0.002 1" friction="5 5 5" condim="6" />
+        <geom name="wall_top" type="box" size="0.502000 0.025 0.15" pos="0 0 0.352000" material="concrete_mat"
+              contype="1" conaffinity="1"
+              solimp="0.9 0.95 0.001" solref="0.002 1" friction="5 5 5" condim="6" />
+        <geom name="wall_bottom" type="box" size="0.502000 0.025 0.15" pos="0 0 -0.352000" material="concrete_mat"
+              contype="1" conaffinity="1"
+              solimp="0.9 0.95 0.001" solref="0.002 1" friction="5 5 5" condim="6" />
+        <geom name="wall_visual_mesh" type="mesh" mesh="wall_with_hole"
+          pos="0 0.026000 0"
+          material="concrete_mat"
+          contype="0" conaffinity="0" density="0"/>
+
+        <geom name="wall_back_left" type="box" size="0.01 0.01 0.202000" pos="-0.192000 -0.03 0" material="frame_mat" rgba="0.9 0.9 0.9 0.1"
+              contype="1" conaffinity="1"
+              solimp="0.9 0.95 0.001" solref="0.002 1" friction="5 5 5" condim="6"/>
+        <geom name="wall_back_right" type="box" size="0.01 0.01 0.202000" pos="0.192000 -0.03 0" material="frame_mat" rgba="0.9 0.9 0.9 0.1"
+              contype="1" conaffinity="1"
+              solimp="0.9 0.95 0.001" solref="0.002 1" friction="5 5 5" condim="6"/>
+        <geom name="wall_back_top" type="box" size="0.182000 0.01 0.01" pos="0 -0.03 0.192000" material="frame_mat" rgba="0.9 0.9 0.9 0.1"
+              contype="1" conaffinity="1"
+              solimp="0.9 0.95 0.001" solref="0.002 1" friction="5 5 5" condim="6"/>
+        <geom name="wall_back_bottom" type="box" size="0.182000 0.01 0.01" pos="0 -0.03 -0.192000" material="frame_mat" rgba="0.9 0.9 0.9 0.1"
+              contype="1" conaffinity="1"
+              solimp="0.9 0.95 0.001" solref="0.002 1" friction="5 5 5" condim="6"/>
+        <geom name="wall_back_visual" type="box" size="0.202000 0.001 0.202000" pos="0 -0.03 0" material="frame_mat" rgba="0.9 0.9 0.9 0.05"
+              contype="0" conaffinity="0"/>
+
+        <geom name="frame_left" type="box" size="0.01 0.01 0.202000" pos="-0.202000 0.015 0" material="window_frame_mat" rgba="0.6 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <geom name="frame_right" type="box" size="0.01 0.01 0.202000" pos="0.202000 0.015 0" material="window_frame_mat" rgba="0.6 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <geom name="frame_top" type="box" size="0.202000 0.01 0.01" pos="0 0.015 0.202000" material="window_frame_mat" rgba="0.6 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <geom name="frame_bottom" type="box" size="0.202000 0.01 0.01" pos="0 0.015 -0.202000" material="window_frame_mat" rgba="0.6 0.3 0.2 1" contype="0" conaffinity="0"/>
+
+        <geom name="frame_outer_left" type="box" size="0.015 0.015 0.210000" pos="-0.210000 0.02 0" material="window_frame_mat" rgba="0.5 0.25 0.15 1" contype="0" conaffinity="0"/>
+        <geom name="frame_outer_right" type="box" size="0.015 0.015 0.210000" pos="0.210000 0.02 0" material="window_frame_mat" rgba="0.5 0.25 0.15 1" contype="0" conaffinity="0"/>
+        <geom name="frame_outer_top" type="box" size="0.210000 0.015 0.015" pos="0 0.02 0.210000" material="window_frame_mat" rgba="0.5 0.25 0.15 1" contype="0" conaffinity="0"/>
+        <geom name="frame_outer_bottom" type="box" size="0.210000 0.015 0.015" pos="0 0.02 -0.210000" material="window_frame_mat" rgba="0.5 0.25 0.15 1" contype="0" conaffinity="0"/>
+
+        <site name="target_site" pos="0 0.02 0" size="0.01" rgba="0 1 0 0" type="sphere"/>
+      </body>
+
+      
+      <body name="left_wall" pos="0.9 -1.104 0.4" quat="0.707 0 0 0.707">
+        
+        <geom name="left_wall_left" type="box" size="0.15 0.025 0.5" pos="-0.352000 0 0" material="concrete_mat" />
+        <geom name="left_wall_right" type="box" size="0.15 0.025 0.5" pos="0.352000 0 0" material="concrete_mat" />
+        <geom name="left_wall_top" type="box" size="0.502000 0.025 0.15" pos="0 0 0.352000" material="concrete_mat" />
+        <geom name="left_wall_bottom" type="box" size="0.502000 0.025 0.15" pos="0 0 -0.352000" material="concrete_mat" />
+        <geom name="left_wall_visual_mesh" type="mesh" mesh="wall_with_hole"
+          pos="0 0.026000 0"
+          material="concrete_mat"
+          contype="0" conaffinity="0" density="0"/>
+
+        
+        <geom name="left_fin_glass" type="box" size="0.202000 0.005 0.202000" pos="0 0.03 0" material="glass_mat" contype="0" conaffinity="0"/>
+        <geom name="left_fin_inner_frame_T" type="box" size="0.202000 0.006 0.02" pos="0 0.035 0.182000" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <geom name="left_fin_inner_frame_B" type="box" size="0.202000 0.006 0.02" pos="0 0.035 -0.182000" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <geom name="left_fin_inner_frame_L" type="box" size="0.02 0.006 0.202000" pos="-0.182000 0.035 0" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <geom name="left_fin_inner_frame_R" type="box" size="0.02 0.006 0.202000" pos="0.182000 0.035 0" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <geom name="l_fin_f_L" type="box" size="0.01 0.02 0.202000" pos="-0.202000 0.045 0" material="window_frame_mat" contype="0" conaffinity="0"/>
+        <geom name="l_fin_f_R" type="box" size="0.01 0.02 0.202000" pos="0.202000 0.045 0" material="window_frame_mat" contype="0" conaffinity="0"/>
+        <geom name="l_fin_f_T" type="box" size="0.202000 0.02 0.01" pos="0 0.045 0.202000" material="window_frame_mat" contype="0" conaffinity="0"/>
+        <geom name="l_fin_f_B" type="box" size="0.202000 0.02 0.01" pos="0 0.045 -0.202000" material="window_frame_mat" contype="0" conaffinity="0"/>
+
+      </body>
+
+      
+      <body name="right_wall" pos="0.9 1.104 0.4" quat="0.707 0 0 0.707">
+        
+        <geom name="right_wall_left" type="box" size="0.15 0.025 0.5" pos="-0.352000 0 0" material="concrete_mat" />
+        <geom name="right_wall_right" type="box" size="0.15 0.025 0.5" pos="0.352000 0 0" material="concrete_mat" />
+        <geom name="right_wall_top" type="box" size="0.502000 0.025 0.15" pos="0 0 0.352000" material="concrete_mat" />
+        <geom name="right_wall_bottom" type="box" size="0.502000 0.025 0.15" pos="0 0 -0.352000" material="concrete_mat" />
+        <geom name="right_wall_visual_mesh" type="mesh" mesh="wall_with_hole"
+          pos="0 0.026000 0"
+          material="concrete_mat"
+          contype="0" conaffinity="0" density="0"/>
+
+        
+        <geom name="right_fin_glass" type="box" size="0.202000 0.005 0.202000" pos="0 0.03 0" material="glass_mat" contype="0" conaffinity="0"/>
+        <geom name="right_fin_inner_frame_T" type="box" size="0.202000 0.006 0.02" pos="0 0.035 0.182000" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <geom name="right_fin_inner_frame_B" type="box" size="0.202000 0.006 0.02" pos="0 0.035 -0.182000" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <geom name="right_fin_inner_frame_L" type="box" size="0.02 0.006 0.202000" pos="-0.182000 0.035 0" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <geom name="right_fin_inner_frame_R" type="box" size="0.02 0.006 0.202000" pos="0.182000 0.035 0" material="frame_mat" rgba="0.4 0.3 0.2 1" contype="0" conaffinity="0"/>
+        <geom name="r_fin_f_L" type="box" size="0.01 0.02 0.202000" pos="-0.202000 0.045 0" material="window_frame_mat" contype="0" conaffinity="0"/>
+        <geom name="r_fin_f_R" type="box" size="0.01 0.02 0.202000" pos="0.202000 0.045 0" material="window_frame_mat" contype="0" conaffinity="0"/>
+        <geom name="r_fin_f_T" type="box" size="0.202000 0.02 0.01" pos="0 0.045 0.202000" material="window_frame_mat" contype="0" conaffinity="0"/>
+        <geom name="r_fin_f_B" type="box" size="0.202000 0.02 0.01" pos="0 0.045 -0.202000" material="window_frame_mat" contype="0" conaffinity="0"/>
+
+      </body>
+
+      <body name="target" pos=".15 0 .5" quat="0 1 0 0" mocap="true">
+        <geom name="target" type="box" size=".03 .03 .03" contype="0" conaffinity="0" rgba=".6 .3 .3 0"/>
+      </body>
+      <body name="glass_rack" pos="0.53 -0.5 0.2" quat="1 0 0 0">
+        <geom name="glass_rack_visual" type="mesh" mesh="glass_rack"
+              material="rack_mat"
+              contype="0" conaffinity="0"/>
+        <geom name="glass_rack_collision" type="mesh" mesh="glass_rack"
+              material="metal_mat"
+              contype="1" conaffinity="1"
+              solimp="0.9 0.95 0.001" solref="0.002 1" friction="5 5 5" condim="6"/>
+      </body>
+    </worldbody>
+
+    <contact>
+      <exclude body1="window_body" body2="glass_rack"/>
+    </contact>
+    <sensor>
+      <framepos name="window_pos" objtype="body" objname="window_body"/>
+      <framequat name="window_quat" objtype="body" objname="window_body"/>
+      <framepos name="target_pos" objtype="site" objname="target_site"/>
+    </sensor>
+</mujoco>
